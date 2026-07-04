@@ -1,0 +1,4 @@
+interface:
+  display_name: "React Native Optimistic UI"
+  short_description: "Build rollback-safe optimistic React Native flows"
+  default_prompt: "Use $react-native-optimistic-ui to implement a rollback-safe optimistic mutation in this React Native screen."
