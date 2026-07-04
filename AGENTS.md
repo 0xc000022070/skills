@@ -30,7 +30,8 @@ Root packaging (edit once per new skill):
 3. Add `agents/openai.yaml` describing how the skill surfaces in the OpenAI runtime.
 4. Put bulky or on-demand material under `references/<topic>.md` and link it from `SKILL.md` with a relative path.
 5. Append `"./<skill-name>"` to the `skills` array in `.claude-plugin/plugin.json`.
-6. Run `claude plugin validate .` from the repo root.
+6. Refresh discovery metadata in `.claude-plugin/marketplace.json` (see [Keeping Manifest Metadata Current](#keeping-manifest-metadata-current)).
+7. Run `claude plugin validate .` from the repo root.
 
 ## SKILL.md Frontmatter
 
@@ -66,4 +67,14 @@ The `$<skill-name>` token is OpenAI-runtime invocation syntax, not Claude Code's
 
 ## Claude Code Packaging
 
-The repo is a marketplace (`.claude-plugin/marketplace.json`) exposing one plugin, `skills`, sourced at `./`. The plugin's `skills` array (`.claude-plugin/plugin.json`) lists each skill directory. Adding a skill means appending one path; the marketplace needs no change. Set `version` only in `plugin.json` — it overrides the marketplace entry.
+The repo is a marketplace (`.claude-plugin/marketplace.json`) exposing one plugin, `skills`, sourced at `./`. The plugin's `skills` array (`.claude-plugin/plugin.json`) lists each skill directory. Adding a skill means appending one path. Set `version` only in `plugin.json` — it overrides the marketplace entry.
+
+## Keeping Manifest Metadata Current
+
+One plugin bundles every skill, so its descriptive fields describe the whole collection, not a single skill. When you add or materially change a skill, refresh the fields it affects:
+
+- `marketplace.json` → `plugins[0].keywords` — add terms for the new skill's domain so the plugin stays discoverable.
+- `marketplace.json` → top-level `description`, `plugins[0].description`, and `category` — update only if the collection's scope actually shifted.
+- `<skill-name>/SKILL.md` → `metadata.category` and `description` — keep accurate to that skill.
+
+Leave `version` out of this. It is pinned in `plugin.json` and bumped only on release; editing descriptive metadata is not a release.
