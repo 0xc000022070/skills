@@ -1,0 +1,14 @@
+{
+  "name": "skills",
+  "description": "A personal collection of Claude Code agent skills.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Luis Quiñones",
+    "email": "luis@quinones.pro"
+  },
+  "homepage": "https://github.com/0xc000022070/skills",
+  "repository": "https://github.com/0xc000022070/skills",
+  "skills": [
+    "./react-native-optimistic-ui"
+  ]
+}

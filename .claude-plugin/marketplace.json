@@ -1,0 +1,19 @@
+{
+  "name": "0xc000022070-skills",
+  "owner": {
+    "name": "Luis Quiñones",
+    "email": "luis@quinones.pro"
+  },
+  "description": "A personal collection of Claude Code agent skills.",
+  "plugins": [
+    {
+      "name": "skills",
+      "source": "./",
+      "description": "A personal collection of Claude Code agent skills.",
+      "keywords": [
+        "skills",
+        "claude-code"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,12 @@
 ---
 name: react-native-optimistic-ui
 description: Build, review, or debug optimistic UI flows in React Native and Expo apps. Use when implementing mutations that update the UI before server confirmation, adding rollback/retry behavior, handling temporary IDs, wiring TanStack Query or Apollo Client optimistic updates, testing race/error states, or fixing stale cache/list/detail synchronization after mobile network failures.
+allowed-tools: Read Grep Glob Edit Write
+disable-model-invocation: false
+metadata:
+  author: Luis Quiñones
+  version: "1.0.0"
+  category: mobile
 ---
 
 # React Native Optimistic UI
