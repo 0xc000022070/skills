@@ -1,7 +1,7 @@
 {
   "name": "0xc000022070-skills",
   "owner": {
-    "name": "Luis Quiñones",
+    "name": "Luis Qui\u00f1ones",
     "email": "luis@quinones.pro"
   },
   "description": "A personal collection of Claude Code agent skills.",
@@ -12,7 +12,11 @@
       "description": "A personal collection of Claude Code agent skills.",
       "keywords": [
         "skills",
-        "claude-code"
+        "claude-code",
+        "zen-browser",
+        "firefox",
+        "nix",
+        "home-manager"
       ]
     }
   ]

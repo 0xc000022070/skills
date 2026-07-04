@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zen Browser Flake Dev"
+  short_description: "Develop and maintain the zen-browser-flake Nix module"
+  default_prompt: "Use $zen-browser-flake-dev to make this change in the zen-browser-flake repo following its patterns and contracts."

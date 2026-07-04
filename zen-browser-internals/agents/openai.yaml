@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zen Browser Internals"
+  short_description: "Navigate Zen Browser source, state files, and prefs"
+  default_prompt: "Use $zen-browser-internals to locate the Zen Browser source and state-file details behind this behavior."
