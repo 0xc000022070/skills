@@ -1,6 +1,6 @@
 {
   "name": "skills",
-  "description": "A personal collection of Claude Code agent skills.",
+  "description": "Agent skills for browser internals, Nix, React Native, and Android firmware engineering.",
   "version": "1.0.0",
   "author": {
     "name": "Luis Qui\u00f1ones",
@@ -9,6 +9,7 @@
   "homepage": "https://github.com/0xc000022070/skills",
   "repository": "https://github.com/0xc000022070/skills",
   "skills": [
+    "./android-firmware-lab",
     "./react-native-optimistic-ui",
     "./zen-browser-internals",
     "./zen-browser-flake-dev"

@@ -4,19 +4,25 @@
     "name": "Luis Qui\u00f1ones",
     "email": "luis@quinones.pro"
   },
-  "description": "A personal collection of Claude Code agent skills.",
+  "description": "Agent skills for browser internals, Nix, React Native, and Android firmware engineering.",
   "plugins": [
     {
       "name": "skills",
       "source": "./",
-      "description": "A personal collection of Claude Code agent skills.",
+      "description": "Agent skills for browser internals, Nix, React Native, and Android firmware engineering.",
+      "category": "development",
       "keywords": [
         "skills",
         "claude-code",
         "zen-browser",
         "firefox",
         "nix",
-        "home-manager"
+        "home-manager",
+        "android",
+        "firmware",
+        "bootloader",
+        "magisk",
+        "kernelsu"
       ]
     }
   ]
