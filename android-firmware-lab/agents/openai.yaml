@@ -1,4 +1,4 @@
 interface:
   display_name: "Android Firmware Lab"
   short_description: "Inspect, build, boot, and debug Android firmware"
-  default_prompt: "Use $android-firmware-lab to inventory this Android device and plan a compatible boot test."
+  default_prompt: "Use $android-firmware-lab to inventory this Android device, validate its artifacts, and plan an evidence-producing boot test."

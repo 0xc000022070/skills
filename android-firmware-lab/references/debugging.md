@@ -24,6 +24,8 @@ Collect what survives the failure mode:
 
 Capture host timestamps and exact candidate hash.
 
+When recovery boots but ADB never enumerates, read [recovery-bringup.md](recovery-bringup.md). Instrument persistent capture before the next boot with `scripts/collect-recovery-diagnostics.sh`; a requirement to collect logs is not actionable without an evidence transport.
+
 ## Failure-stage matrix
 
 | Observation | Likely domain | First checks |

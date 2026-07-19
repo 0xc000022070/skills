@@ -15,7 +15,20 @@ Bundled references contain stable operational knowledge. Use these sources when 
 - https://source.android.com/docs/setup/build/building-kernels
 - https://source.android.com/docs/security/features/selinux
 - https://android.googlesource.com/platform/system/core/+/master/init/README.md
+- https://android.googlesource.com/platform/bootable/recovery/ and `recovery-persist.cpp`
 - https://developer.android.com/tools/releases/platform-tools
+
+## Recovery and kernel primary sources
+
+- TeamWin branch selection: https://twrp.me/faq/howtocompiletwrp.html
+- TeamWin recovery source: https://github.com/TeamWin/android_bootable_recovery
+- TWRP input handling: `minuitwrp/events.cpp` and `minuitwrp/libminuitwrp_defaults.go` in the selected branch
+- Linux multitouch protocol: https://docs.kernel.org/input/multi-touch-protocol.html
+- Linux USB gadget configfs: https://docs.kernel.org/usb/gadget_configfs.html
+- Linux ramoops/pstore: https://docs.kernel.org/admin-guide/ramoops.html
+- Repo manifest format: https://gerrit.googlesource.com/git-repo/+/HEAD/docs/manifest-format.md
+- Revision-locked manifests: https://gerrit.googlesource.com/git-repo/+/HEAD/man/repo-manifest.1
+- Nix flake locks: https://nix.dev/manual/nix/latest/command-ref/new-cli/nix3-flake-lock.html
 
 ## Upstream root/tool sources
 

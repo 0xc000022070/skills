@@ -12,6 +12,8 @@
 
 Record source manifest/commit, local patches, toolchain identity, build configuration, environment, command, inputs, outputs, warnings, and SHA-256 hashes. Do not call an artifact reproducible without a second clean build comparison.
 
+For Android `repo` work, export a revision-locked manifest with `repo manifest -r`. Pinning only the manifest repository leaves subordinate branch revisions movable. A committed Nix `flake.lock` pins Nix inputs, not the Android source forest, blobs, ccache, or mutations made inside the checkout.
+
 ## Kernel and GKI builds
 
 Determine the branch/build system from device source. Modern Android common kernels use Kleaf/Bazel; older/vendor trees often use `build.sh`, Make, or vendor wrappers. Follow the tree, not a generic command.
@@ -60,6 +62,8 @@ Bring up in layers:
 6. system_server and UI.
 7. HALs: display, input, storage, audio, camera, radio, sensors, biometrics.
 8. suspend/resume, charging, thermal, performance, OTA and recovery.
+
+For custom recovery builds, use [recovery-bringup.md](recovery-bringup.md). Do not replace upstream recovery init or patch the source checkout during the build unless the exact diff is versioned and reviewed.
 
 ## Output verification
 

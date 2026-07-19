@@ -1,10 +1,10 @@
 ---
 name: android-firmware-lab
-description: Inspect, identify, build, unpack, patch-plan, temporary-boot, debug, and recover Android firmware, kernels, boot images, root solutions, ROMs, and device trees. Use for adb/fastboot device inventory, boot or init_boot analysis, GKI/KMI compatibility, AVB/vbmeta and A/B slot reasoning, Magisk/KernelSU/APatch work, kernel or AOSP builds, bootloop diagnosis, custom ROM bring-up, and device-specific firmware planning.
+description: Inspect, identify, build, unpack, patch-plan, temporary-boot, debug, and recover Android firmware, kernels, boot images, root solutions, ROMs, recoveries, and device trees. Use for adb/fastboot inventory, boot or init_boot analysis, GKI/KMI compatibility, AVB/vbmeta and A/B reasoning, Magisk/KernelSU/APatch work, kernel or AOSP builds, bootloop diagnosis, TWRP or legacy recovery bring-up, dead recovery touch or USB, custom ROM bring-up, and device-specific firmware planning.
 allowed-tools: Read Grep Glob Bash(adb:*) Bash(file:*) Bash(sha256sum:*) Bash(python3:*)
 metadata:
   author: Luis Quiñones
-  version: "1.0.0"
+  version: "1.1.0"
   category: android-firmware
 ---
 
@@ -32,6 +32,7 @@ Stop compatibility analysis when identity is ambiguous. A shared marketing name 
 | Plan temporary boot, patching, rooting, or flashing | [workflows.md](references/workflows.md), [recovery.md](references/recovery.md) |
 | Diagnose bootloop, kernel panic, init failure, SELinux denial | [debugging.md](references/debugging.md) |
 | Build kernel, GKI module, AOSP, recovery, or ROM | [building.md](references/building.md), [compatibility.md](references/compatibility.md) |
+| Bring up TWRP/custom recovery, legacy MediaTek, touch, USB, or no-ADB diagnostics | [recovery-bringup.md](references/recovery-bringup.md), [debugging.md](references/debugging.md) |
 | Choose Magisk, KernelSU, APatch, LSPosed, or tooling | [ecosystem.md](references/ecosystem.md) |
 | Handle Pixel, Samsung, Xiaomi, OnePlus, Motorola, Sony | [device-families.md](references/device-families.md) |
 | Refresh volatile facts or verify provenance | [sources.md](references/sources.md) |
@@ -80,6 +81,13 @@ sha256sum path/to/image.img
 
 Use dedicated upstream tools when available: `unpack_bootimg`, `magiskboot`, `avbtool`, `lpdump`, `lpunpack`, `simg2img`, `payload-dumper-go`, `mkdtimg`, `dtc`, `fsck.erofs`, `debugfs`.
 
+For recovery work, audit the tree and compare every candidate against exact stock:
+
+```sh
+python3 scripts/audit-recovery-tree.py path/to/device-tree --expected codename --pretty
+python3 scripts/compare-boot-images.py stock.img candidate.img --partition-size SIZE --pretty
+```
+
 Preserve originals. Write derived artifacts to a separate lab directory. Never repack over the only stock copy.
 
 ## Debug by last completed stage
@@ -101,3 +109,19 @@ Pin source revision, toolchain, configuration, and input artifacts. Record build
 ## Completion criteria
 
 A plan is complete only when it states compatibility evidence, unresolved assumptions, expected observations, failure boundary, and recovery path. A build is complete only when artifacts are identified and hashed. A boot test is complete only when logs and result are captured against the hypothesis.
+
+## Close the skill feedback loop
+
+When a real session exposes a material skill gap, report it in the final response instead of claiming it was saved to memory. Keep the report short and reusable:
+
+```text
+Skill feedback:
+- scenario and failure boundary:
+- what the skill improved:
+- missing mechanism or knowledge:
+- evidence captured:
+- proposed general rule/tool:
+- device-specific detail that must remain local:
+```
+
+Emit feedback only when it can improve the skill. Separate upstream-supported mechanics from one-device experience.

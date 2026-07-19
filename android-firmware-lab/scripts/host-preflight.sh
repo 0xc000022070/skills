@@ -2,7 +2,7 @@
 set -u
 
 tools=(adb fastboot python3 file sha256sum)
-optional=(unpack_bootimg mkbootimg magiskboot avbtool lpdump lpunpack simg2img payload-dumper-go mkdtimg dtc fdtdump fsck.erofs debugfs)
+optional=(unpack_bootimg mkbootimg magiskboot avbtool lpdump lpunpack simg2img payload-dumper-go mkdtimg dtc fdtdump fsck.erofs debugfs lz4 lsusb udevadm timeout)
 
 printf 'required tools\n'
 missing=0

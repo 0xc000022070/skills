@@ -49,8 +49,13 @@ def detect(path: Path) -> dict[str, object]:
         details["page_size"] = u32le(head, 12)
     if head.startswith(b"AVB0"):
         formats.append("avb-vbmeta")
-    if tail.startswith(b"AVBf"):
+    if len(tail) == 64 and tail.startswith(b"AVBf"):
         formats.append("avb-footer")
+        _, major, minor, original_size, vbmeta_offset, vbmeta_size, _ = struct.unpack(">4sIIQQQ28s", tail)
+        details["avb_footer_version"] = f"{major}.{minor}"
+        details["avb_original_image_size"] = original_size
+        details["avb_vbmeta_offset"] = vbmeta_offset
+        details["avb_vbmeta_size"] = vbmeta_size
     if head.startswith(b"CrAU"):
         formats.append("android-ota-payload")
     if len(head) >= 4 and struct.unpack_from("<I", head, 0)[0] == 0xED26FF3A:
