@@ -4,7 +4,7 @@ description: Inspect, identify, build, unpack, patch-plan, temporary-boot, debug
 allowed-tools: Read Grep Glob Bash(adb:*) Bash(file:*) Bash(sha256sum:*) Bash(python3:*)
 metadata:
   author: Luis Quiñones
-  version: "1.1.0"
+  version: "1.2.0"
   category: android-firmware
 ---
 
@@ -35,6 +35,7 @@ Stop compatibility analysis when identity is ambiguous. A shared marketing name 
 | Bring up TWRP/custom recovery, legacy MediaTek, touch, USB, or no-ADB diagnostics | [recovery-bringup.md](references/recovery-bringup.md), [debugging.md](references/debugging.md) |
 | Choose Magisk, KernelSU, APatch, LSPosed, or tooling | [ecosystem.md](references/ecosystem.md) |
 | Handle Pixel, Samsung, Xiaomi, OnePlus, Motorola, Sony | [device-families.md](references/device-families.md) |
+| Boot a mainline Linux distribution instead of Android on the device | skill `mobile-nixos-port` |
 | Refresh volatile facts or verify provenance | [sources.md](references/sources.md) |
 
 ## Evidence hierarchy

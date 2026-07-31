@@ -5,6 +5,7 @@
 - Evidence sources
 - Failure-stage matrix
 - Kernel and init diagnosis
+- Display output diagnosis
 - SELinux
 - Experiment loop
 
@@ -44,6 +45,36 @@ When recovery boots but ADB never enumerates, read [recovery-bringup.md](recover
 For kernel failure, preserve the first panic/oops, not only the final reboot. Check exception, call trace, taint, loaded modules, command line, and preceding storage/IOMMU/driver errors.
 
 For init failure, inspect exact action/service, return status, restart count, mount error, property trigger, executable context, capabilities, and SELinux denial. Do not edit rc files until the failing dependency is known.
+
+## Display output diagnosis
+
+A dark or partially painted panel is not one failure. Separate the panel, the
+framebuffer, the console binding, compositing, the palette, and the backlight
+before changing anything. A lit backlight showing nothing and a dark panel
+rendering correctly are opposite bugs that look identical.
+
+Quantify the framebuffer instead of describing it. **Enumerate the distinct
+32-bit values in one framebuffer page**; the cardinality is the diagnosis.
+
+| Distinct values | Reading |
+|---|---|
+| 1, all zero | nothing rendered, or rendered through a zeroed palette |
+| 2, one of them `0xAAAAAA` | a text console is drawing correctly; VGA light grey is its default foreground |
+| many, row-structured | something draws; suspect stride, pixel format, or panning |
+| many, unstructured | uninitialised memory being scanned out |
+
+Counting "non-black pixels" cannot distinguish the first two rows and reads as
+zero for the most common downstream bug.
+
+Read the page at the driver's reported `line_length`/stride, not at
+`xres * bpp/8`; padded strides are normal and slicing at the wrong pitch turns
+readable output into diagonal noise. Check `virtual_size` too — the page being
+scanned out is not necessarily page 0.
+
+For the fbdev-specific failure modes behind each of these — missing
+`.fb_setcolreg`, a console driver that never binds a VT, a driver that only
+composites on `FBIOPAN_DISPLAY`, and DSI command backlights that ignore repeated
+values — use skill `mobile-nixos-port`.
 
 ## SELinux
 

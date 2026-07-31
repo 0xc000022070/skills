@@ -188,6 +188,14 @@ Legacy MediaTek ports commonly combine:
 
 Confirm each item from stock. Do not infer userspace bitness from CPU capability. Do not create preloader aliases or touch boot-region devices during ordinary recovery bring-up.
 
+Mode transitions on these bootloaders are unevenly implemented. Verify each route before it is on the critical path of a flash:
+
+- `adb reboot bootloader` can fail with `reboot failed: -1` while `adb shell 'reboot bootloader'` works.
+- `fastboot oem reboot-recovery` is often not a recognised command; `fastboot reboot recovery` is.
+- Read `fastboot getvar max-download-size` rather than assuming; it bounds what a single flash can carry.
+
+A route that has not been exercised is not a restore path.
+
 ## Promote a candidate
 
 Compare stock and candidate before every boot:
