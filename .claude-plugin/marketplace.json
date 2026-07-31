@@ -25,7 +25,12 @@
         "recovery",
         "mediatek",
         "magisk",
-        "kernelsu"
+        "kernelsu",
+        "mobile-nixos",
+        "nixos",
+        "kernel",
+        "fbdev",
+        "postmarketos"
       ]
     }
   ]

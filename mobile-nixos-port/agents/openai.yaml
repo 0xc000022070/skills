@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mobile NixOS Port"
+  short_description: "Port Mobile NixOS to a phone: kernel, boot image, stage-1, display"
+  default_prompt: "Use $mobile-nixos-port to bring this device up on Mobile NixOS, one falsifiable rung at a time."

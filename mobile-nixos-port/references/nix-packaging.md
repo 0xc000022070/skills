@@ -1,0 +1,159 @@
+# Packaging a port in Nix
+
+## Contents
+
+- Consuming Mobile NixOS from a flake
+- Patching the Mobile NixOS tree
+- The kernel derivation
+- What the structured config layer overrides
+- Boot image geometry
+- Patch discipline
+
+## Consuming Mobile NixOS from a flake
+
+Mobile NixOS ships **no flake**. It pins Nixpkgs with `npins` and exposes
+`pkgs.nix` as the entry point. Take it as a non-flake source input and use the
+Nixpkgs it pins — that is the one every device was validated against, and
+introducing a second Nixpkgs guarantees drift.
+
+```nix
+inputs.mobile-nixos = {
+  url = "github:mobile-nixos/mobile-nixos/<rev>";
+  flake = false;
+};
+
+pkgsFor = system: import "${mobile-nixos}/pkgs.nix" { inherit system; };
+```
+
+`lib/eval-with-configuration.nix` takes
+`{ system ? null, pkgs ? null, device ? null, configuration, additionalConfiguration ? {}, additionalHelpInstructions ? null }`.
+
+- `system` **must be passed explicitly**. Its default is
+  `builtins.currentSystem`, which pure flake evaluation forbids.
+- Passing both `system` and `pkgs` throws.
+- `device` may be a path: it is accepted when
+  `builtins.isPath device && builtins.pathExists device`, so a device directory
+  in your own repo works without registering anything upstream.
+
+npins calls `builtins.getEnv` for its `NPINS_OVERRIDE_*` escape hatch. In pure
+eval that returns `""`, which is harmless.
+
+Android outputs live under `eval.outputs.android`: `android-bootimg`,
+`android-recovery`, `android-fastboot-images`. The kernel derivation is
+`eval.config.mobile.boot.stage-1.kernel.package`.
+
+## Patching the Mobile NixOS tree
+
+Some geometry is not expressible through options — Android boot header v2, for
+one. Patch the input rather than overlay around it:
+
+```nix
+mobileNixosFor = system: (pkgsFor system).applyPatches {
+  name = "mobile-nixos-patched";
+  src = mobile-nixos;
+  patches = [ ./patches/mobile-nixos/0001-android-bootimg-header-v2.patch ];
+};
+```
+
+A patch fails loudly when upstream moves. An overlay that reimplements the same
+thing silently no-ops instead, which is the worse failure.
+
+## The kernel derivation
+
+`mobile-nixos.kernel-builder` is a **two-level function**: injected dependencies
+first, user arguments second. The user argument set ends in `...`, so passing an
+injected dependency (`stdenv`, `overrideCC`, …) in the second set is silently
+accepted and ignored. Toolchain changes must go through `.override`:
+
+```nix
+(mobile-nixos.kernel-builder.override {
+  stdenv = overrideCC stdenv buildPackages.gcc13;
+}) {
+  version = "4.9.190";
+  configfile = ./config.aarch64;
+  src = fetchFromGitHub { /* pinned rev + hash */ };
+  patches = [ ../../../patches/linux/<soc>/0006-....patch ];
+  enableRemovingWerror = true;
+  isCompressed = "gz";
+  isModular = true;
+  enableLinuxLogoReplacement = false;
+  enableCenteredLinuxLogo = false;
+  nativeBuildInputs = [ python3 ];
+  makeFlags = [ "KCFLAGS=-fcommon" ];
+}
+```
+
+Argument notes:
+
+- **`...` in the device kernel's own argument set is load-bearing.** NixOS'
+  `boot.kernelPackages` apply function
+  (`nixos/modules/system/boot/kernel.nix`) calls
+  `super.kernel.override (originalArgs: { randstructSeed; kernelPatches; features; })`,
+  so anything evaluating `system.build.toplevel` passes three undeclared
+  arguments. The consequence: `boot.kernelPatches` and `boot.kernel.features`
+  are **inert** for such a device. Patches go in the builder's `patches` list.
+- **Toolchain.** Nixpkgs' current GCC rejects implicit function declarations,
+  which a 2019 vendor tree cannot survive. GCC 13 is the newest Nixpkgs release
+  that only warns. `buildPackages.gccN` is the cross compiler that runs on the
+  build host. This is a real deviation from the vendor's clang and is not proven
+  harmless: a successful compile is not ABI compatibility.
+- **`enableRemovingWerror`.** A blanket `-Wno-error` does *not* cancel the
+  specific `-Werror=<name>` form GCC emits, so the flags have to be stripped out
+  of the makefiles.
+- **`makeFlags = [ "KCFLAGS=-fcommon" ]`.** gcc10+ defaults to `-fno-common`;
+  pre-2020 trees rely on tentative definitions being merged.
+- **`nativeBuildInputs = [ python3 ]`.** MediaTek trees run
+  `tools/dct/DrvGen.py` from `scripts/drvgen/drvgen.mk` to *generate* a `.dtsi`,
+  so python is a device-tree dependency, not a helper. The builder's
+  `patchShebangs` silently leaves a shebang alone when the interpreter is not on
+  PATH, so omitting it fails late and confusingly.
+
+## What the structured config layer overrides
+
+`mobile-nixos/modules/kernel-config.nix` layers structured config over your
+defconfig and both adds and overrides symbols. Ones that reliably matter:
+
+| Symbol | Effect |
+|---|---|
+| `RD_GZIP`, `RD_XZ` | initramfs decompressors; without them the ramdisk never unpacks |
+| `FRAMEBUFFER_CONSOLE` | what `console=tty1` actually binds to |
+| `CONFIG_LOCALVERSION=""`, `LOCALVERSION_AUTO=n` | release string becomes plain `X.Y.Z`, overriding the defconfig's `-<codename>` suffix |
+
+Normalize the vendor defconfig with an out-of-tree `make olddefconfig` against
+the pinned source and check in the normalized file, so the repo matches what is
+actually built. It still is not the config the kernel runs with.
+
+## Boot image geometry
+
+Derive geometry from the packager that already worked for the device (Droidian's
+`kernel-info.mk`, pmaports' `deviceinfo`), then **check every field against the
+unpacked stock image**. Fields that commonly differ from the lead: header
+version, `offset_second`, and the dtb section format.
+
+MediaTek DTBO/dtb sections are usually built with
+`mkdtboimg create` over the kernel's `dtbs/<vendor>/<soc>.dtb`.
+
+Compare candidate against stock by section size, not by whole-file hash:
+`file_size`, `kernel_size`, `ramdisk_size`, `dtb_size`, page size, and the full
+cmdline. A one-byte kernel delta is gzip nondeterminism; a ramdisk delta must be
+explainable by a specific source change (a stage-1 task lives in the initrd, so
+editing its comments changes the image).
+
+## Patch discipline
+
+Group patches by the tree they apply to, not by the device:
+
+```
+patches/mobile-nixos/     applied to the Mobile NixOS source tree
+patches/systemd/          applied to nixpkgs' systemd via an overlay
+patches/linux/<soc>/      applied to a vendor kernel tree
+```
+
+Numbering is global; the directory says which tree. Nix stores patch files by
+content hash plus basename, so moving a patch between directories without
+changing its name or content leaves the derivation unchanged — expect a cache
+hit, and treat a rebuild as a signal that something else moved.
+
+Record removed patches in the derivation next to the applied ones when the
+removal itself was the finding. A patch deleted without a note gets
+reintroduced.

@@ -1,0 +1,105 @@
+---
+name: mobile-nixos-port
+description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, running modern systemd on a pre-5.x kernel, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI and root solutions, use android-firmware-lab.
+allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*) Bash(sha256sum:*) Bash(file:*)
+disable-model-invocation: false
+metadata:
+  author: Luis Quiñones
+  version: "1.0.0"
+  category: nix
+---
+
+# Mobile NixOS device ports
+
+Reference implementation: https://github.com/0xc000022070/mobile-config — one
+Nix flake, a device registry, per-device kernel pins, patches grouped by the
+tree they apply to. Read the device README before touching any device: it
+records the exact hardware/firmware tuple the port was written against.
+
+A port is a chain of falsifiable states. Do not skip a rung, and do not claim a
+rung you have not observed.
+
+## Bring-up ladder
+
+| Rung | Proven by |
+|---|---|
+| Kernel builds for the target arch | artifact exists, `file`, hashes recorded |
+| Image geometry matches stock | unpacked header report vs stock, fits partition |
+| Bootloader accepts the image | it boots instead of returning to fastboot |
+| Kernel reaches stage-1 init | any observation channel produces output |
+| Observation channel is bidirectional | serial, USB gadget, or SSH shell |
+| Panel shows readable console | text on the panel, not just a lit backlight |
+| Stage-2 switch_root | a rootfs exists and is found by label |
+
+Each rung has its own failure domain. Naming the last rung you actually reached
+is the whole of the debugging method; guessing past it wastes boot attempts.
+
+## Route the work
+
+| Task | Read |
+|---|---|
+| Flake, device registry, kernel derivation, boot image, patch discipline | [nix-packaging.md](references/nix-packaging.md) |
+| Write or debug a stage-1 task, USB gadget, networking, SSH, logs | [stage-1.md](references/stage-1.md) |
+| Black panel, white band, lit-but-blank, no KMS, fbcon, backlight | [display-bringup.md](references/display-bringup.md) |
+| systemd/udev failing on a 4.x kernel, missing syscalls | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
+| Stock artifacts, AVB, partition maps, recovery trees, rooting | skill `android-firmware-lab` |
+
+## Hard rules
+
+- Flash to `recovery`, not `boot`, for the whole of stage-1 bring-up. A working
+  Android `boot` is the way back from every experiment. Never write `super` or
+  `userdata` before stage-1 is repeatable.
+- One variable per boot attempt. A boot that changed three things and failed
+  produces no information.
+- Pin the kernel by revision and hash, never by branch. Vendor forks rebase.
+- The defconfig you ship is the *input*. Mobile NixOS layers structured config
+  on top and overrides symbols (`RD_GZIP`, `FRAMEBUFFER_CONSOLE`,
+  `CONFIG_LOCALVERSION`, …). Reasoning about runtime behaviour from the
+  checked-in config file produces confident wrong answers. Enable
+  `CONFIG_IKCONFIG` and read `/proc/config.gz` off the running device.
+- Every patch header records the measurement that motivated it — the boot
+  attempt, the file:line, the observed value. A patch whose header only states
+  intent cannot be re-audited later.
+- Do not use `mobile.boot.stage-1.ssh.enable`. Upstream documents it as opening
+  root access with no password and no key. Write a task that runs dropbear with
+  `-s` and an explicit `authorized_keys`.
+- A build is not a boot. A boot is not an installation. One hardware revision
+  proves nothing about another.
+
+## Verify commands
+
+```sh
+nix build .#<device>-boot-img -L
+nix build .#<device>-kernel -L
+nix eval .#packages.x86_64-linux --apply builtins.attrNames
+
+unpack_bootimg --boot_img result --out /tmp/unpacked   # geometry vs stock
+sha256sum result
+stat -c %s result                                      # vs measured partition size
+
+adb shell 'reboot bootloader'      # `adb reboot bootloader` fails on some MTK
+fastboot flash recovery result
+fastboot reboot recovery           # `fastboot oem reboot-recovery` often absent
+```
+
+x86_64 cross-compiles; both `x86_64-linux` and `aarch64-linux` are built. A cold
+build fetches on the order of a gigabyte per device.
+
+## Adding a device
+
+1. `devices/<vendor>-<codename>/` with `default.nix` (identity, boot image
+   geometry, cmdline, USB) and `kernel/` (source pin, toolchain, defconfig).
+2. Register it in the `devices` attrset in `flake.nix`. Do not add a flake
+   `default` output — a bare `nix build` must not silently build the wrong phone.
+3. Write the device README before the first flash: exact model, codename, SoC,
+   hardware revision, panel, touch controller, kernel release, firmware build
+   and SPL, verified-boot state, slot scheme.
+4. Anything shared moves to `modules/` only once a second device needs it. Split
+   by lifetime, not by device: kernel-version quirks follow the kernel version,
+   SoC quirks follow the SoC, panel quirks stay with the device.
+
+## Completion criteria
+
+State the rung reached, the evidence that proves it, the unresolved assumptions,
+and the restore path. Report untested hardware as untested — touch, Wi-Fi,
+audio, modem, charging and suspend are not implied by a console.
