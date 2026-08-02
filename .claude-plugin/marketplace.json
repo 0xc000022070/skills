@@ -29,6 +29,8 @@
         "mobile-nixos",
         "nixos",
         "kernel",
+        "systemd",
+        "adb",
         "fbdev",
         "postmarketos"
       ]

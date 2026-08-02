@@ -1,6 +1,6 @@
 ---
 name: mobile-nixos-port
-description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, running modern systemd on a pre-5.x kernel, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI and root solutions, use android-firmware-lab.
+description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI and root solutions, use android-firmware-lab.
 allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*) Bash(sha256sum:*) Bash(file:*)
 disable-model-invocation: false
 metadata:
@@ -30,9 +30,16 @@ rung you have not observed.
 | Observation channel is bidirectional | serial, USB gadget, or SSH shell |
 | Panel shows readable console | text on the panel, not just a lit backlight |
 | Stage-2 switch_root | a rootfs exists and is found by label |
+| PID 1 reaches a service manager | a unit ran — journal on disk, or adbd back after handoff |
+| Session starts | the UI is on the panel and takes input |
 
 Each rung has its own failure domain. Naming the last rung you actually reached
 is the whole of the debugging method; guessing past it wastes boot attempts.
+
+The last two rungs are separated deliberately. `switch_root` succeeding proves
+the rootfs is readable and the label resolved — it proves nothing about systemd
+starting, and a PID 1 that freezes in its own startup path leaves a device that
+is warm, powered and silent. "It boots" is not a rung.
 
 ## Route the work
 
@@ -41,7 +48,8 @@ is the whole of the debugging method; guessing past it wastes boot attempts.
 | Flake, device registry, kernel derivation, boot image, patch discipline | [nix-packaging.md](references/nix-packaging.md) |
 | Write or debug a stage-1 task, USB gadget, networking, SSH, logs | [stage-1.md](references/stage-1.md) |
 | Black panel, white band, lit-but-blank, no KMS, fbcon, backlight | [display-bringup.md](references/display-bringup.md) |
-| systemd/udev failing on a 4.x kernel, missing syscalls | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
+| systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
+| Device drops off USB at handoff, no logs, writing a rootfs over adb | [device-debugging.md](references/device-debugging.md) |
 | Stock artifacts, AVB, partition maps, recovery trees, rooting | skill `android-firmware-lab` |
 
 ## Hard rules

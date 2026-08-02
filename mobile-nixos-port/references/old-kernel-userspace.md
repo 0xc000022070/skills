@@ -4,11 +4,24 @@ A downstream phone kernel is often 3.18, 4.4 or 4.9. Current systemd assumes
 syscalls introduced years later, and its usual reaction to a missing one is to
 treat the operation as fatal rather than to fall back.
 
-## The failure shape
+## Two failure shapes, only one of which leaves logs
 
 The kernel returns `ENOSYS`/`EINVAL` for a syscall systemd's feature-detection
-did not gate. Symptoms are never "unsupported kernel" — they are large,
-repetitive counts in the journal:
+did not gate. Where that happens decides whether you get to read about it:
+
+- **After the journal exists** — noisy, countable, tractable. The table below.
+- **Inside PID 1's own startup, before any unit runs** — systemd calls
+  `freeze()` and the machine sits there. No journal, no console message, no
+  shell, nothing to count. See [Failures with no log at
+  all](#failures-with-no-log-at-all).
+
+The second shape is the one that costs days, because every instinct trained on
+the first one is useless against it.
+
+## The noisy shape
+
+Symptoms are never "unsupported kernel" — they are large, repetitive counts in
+the journal:
 
 | Observed | Cause | Kernel that added it |
 |---|---|---|
@@ -21,24 +34,81 @@ Each of these was found the same way: boot, read the failure, count it, patch
 one thing, boot again. The counts matter — a four-digit repetition identifies a
 per-device or per-event code path, a single occurrence identifies a startup path.
 
+## Failures with no log at all
+
+`mount_setup()` runs in PID 1 before the journal, before the console is usable
+for anything structured, before any unit. Every entry in its table carries flags;
+an entry marked `MNT_FATAL` that fails to mount or to be *recognised as already
+mounted* is unrecoverable, and PID 1 calls `freeze()`. The device is then warm,
+powered, on the bus if a gadget was set up in stage-1 — and completely silent.
+
+A worked example, because the shape is more instructive than the fix. Two
+kernel-age problems stack inside one call:
+
+1. `statx()` is Linux 4.11. On an older kernel glibc falls back to
+   `statx_generic()`, which rejects **any** flag outside
+   `{AT_EMPTY_PATH, AT_NO_AUTOMOUNT, AT_SYMLINK_NOFOLLOW}` with `EINVAL`. systemd
+   passes `AT_STATX_DONT_SYNC` (0x4000) as an optimisation, so the call fails
+   outright — an optimisation flag turning into a hard error.
+2. Even with that fixed, `STATX_ATTR_MOUNT_ROOT` is Linux 5.8, and
+   `xstatx_full()`'s mandatory-attributes check returns `-EUNATCH` when the
+   kernel does not report it.
+
+Either one makes `path_is_mount_point_full()` fail; that failure on a `MNT_FATAL`
+entry is what freezes PID 1. The fallbacks are the obvious ones — retry `statx()`
+without `AT_STATX_SYNC_TYPE` on `EINVAL`, and compare `st_dev`/`st_ino` against
+the parent directory to decide "is this a mount root" when the attribute is
+unavailable.
+
+What matters for the next port is the method, since the usual method does not
+apply:
+
+- **Do not expect to diagnose this from the device.** There is no log. Read the
+  systemd source for the version nixpkgs ships, find every `MNT_FATAL` entry and
+  every syscall on that path, and check each against the kernel's version.
+- **Establish an out-of-band channel first.** See
+  [device-debugging.md](device-debugging.md) — a raw log ring on unused disk,
+  written from `boot.postBootCommands` rather than a unit, because the whole
+  point is that no unit ever runs.
+- **A silent freeze is not a kernel panic and not a hang.** It is systemd
+  deciding it cannot continue. Distinguishing them changes where you look:
+  panic → pstore, hang → task graph, freeze → PID 1's own startup path.
+
 ## Patching it
 
-Carry the patches in your own repo and apply them through an overlay:
+Carry the patches in your own repo. Keep the *list* in its own file so nothing
+can hold a stale copy of it:
+
+```nix
+# patches/systemd/default.nix
+[
+  ./0002-systemd-mnt-id-fdinfo-fallback.patch
+  ./0003-systemd-pidfd-sigchld-fallback.patch
+  ./0004-systemd-uevent-no-synthetic-uuid.patch
+  ./0005-systemd-block-sigchld-without-pidfd.patch
+  ./0006-systemd-statx-sync-flags-and-mount-root.patch
+]
+```
+
+Apply it through an overlay:
 
 ```nix
 nixpkgs.overlays = [
-  (final: prev: {
-    systemd = prev.systemd.overrideAttrs (old: {
-      patches = (old.patches or [ ]) ++ [
-        ../patches/systemd/0002-systemd-mnt-id-fdinfo-fallback.patch
-        ../patches/systemd/0003-systemd-pidfd-sigchld-fallback.patch
-        ../patches/systemd/0004-systemd-uevent-no-synthetic-uuid.patch
-        ../patches/systemd/0005-systemd-block-sigchld-without-pidfd.patch
-      ];
-    });
-  })
-];
+  (final: prev:
+    lib.optionalAttrs prev.stdenv.hostPlatform.isAarch64 {
+      systemd = prev.systemd.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ import ../patches/systemd;
+      });
+    })
+  ];
 ```
+
+**Scope the overlay to the target platform.** `nixpkgs.overlays` also applies to
+`pkgs.buildPackages`, so an unscoped systemd override rebuilds the *native*
+systemd and everything downstream of it — qtbase, openjdk, gtk4 — none of which
+is cross-compiled and none of which is in the binary cache once patched. The
+`lib.optionalAttrs` guard is the difference between a systemd rebuild and an
+afternoon.
 
 `systemdMinimal` derives from `systemd` through `override` + `overrideAttrs`, so
 it **inherits these patches**. Patching it separately fails to apply.
@@ -46,6 +116,26 @@ it **inherits these patches**. Patching it separately fails to apply.
 Name the module after the kernel version it exists for
 (`modules/systemd-linux-4.9.nix`), not after the device — the constraint follows
 the kernel, and a second device on the same vintage should import the same file.
+
+## Check that the patches still apply, without a device
+
+The expensive failure is a Nixpkgs bump moving systemd far enough that a patch
+no longer applies — discovered after a cross-compile, a multi-gigabyte write and
+a boot. `applyPatches` against native systemd source answers it in seconds:
+
+```nix
+checks = forEachSystem (system: {
+  systemd-patches = (pkgsFor system).applyPatches {
+    name = "systemd-linux-4.9-patches-apply";
+    src = (pkgsFor system).systemd.src;
+    patches = import ./patches/systemd;
+  };
+});
+```
+
+`nix flake check` now covers it. Because the check and the overlay import the
+same list, the check cannot drift from what actually ships — which is the only
+reason it is worth having.
 
 ## The alternative and its cost
 

@@ -72,12 +72,25 @@ Ranked by how early they exist:
    silently broken than absent.
 3. **`/run/log/stage-1.log`** — readable once you have any shell.
 4. **USB gadget: adb, then SSH.**
-5. **pstore/ramoops** — survives the reboot, so it is the only channel for a
-   failure that kills the kernel.
+5. **pstore/ramoops** — in principle survives a reboot, so in principle it is the
+   only channel for a failure that kills the kernel. **Verify it on your device
+   before relying on it.** On a MediaTek MT6762G 4.9 tree with
+   `CONFIG_MTK_RAM_CONSOLE`, `PSTORE_RAM` and `PSTORE_CONSOLE` all set, neither
+   `/sys/fs/pstore` nor `/proc/last_kmsg` had anything after a power-off. The
+   symbols being present is not evidence the region is preserved. Prove it once,
+   deliberately: trigger a known panic, power-cycle, look for it.
 
 `/dev/console` (5:1) resolves to the **last** `console=` parameter on the
 cmdline. With `console=ttyS0,... console=tty1`, `shellOnFail` lands on the panel,
 not on serial. Order the parameters deliberately.
+
+**Userspace writes to `/dev/console` never enter the kernel ring buffer.** So a
+userspace loop flooding the console is invisible to `dmesg`, to `/proc/kmsg`,
+and to anything built on them — the channel that shows the problem and the
+channel you are reading are not the same channel. A backlight task spinning at
+two console writes per iteration was found from a *photograph of the panel*
+after the logs had been read repeatedly and showed nothing. When the symptom is
+"slow" or "hung" and the logs are clean, look at the screen.
 
 `/run/mobile-nixos-init-messages` is a **socket**, not a log file. Reading it as
 a file gets you nothing.
@@ -144,11 +157,43 @@ Two things that are not obvious:
 Keep the allowed keys in one checked-in file at the repo root, with a comment
 saying that a fork which does not replace the list grants its author root.
 
+## What a spawned task survives at switch_root
+
+`System.spawn` detaches, and a detached process is **not** killed by
+`switch_root` — it keeps running with its open binary from the initramfs, which
+the kernel holds alive after the initramfs is gone. What it loses is everything
+it resolves *by name at runtime*: `PATH` lookups, `/sys` and `/proc` paths, any
+file it had not already opened. The process survives; its world does not.
+
+This produces a specific bug shape. A periodic task written as
+
+```ruby
+System.spawn("sh", "-c", "while true; do refresh; sleep 1; done")
+```
+
+runs correctly for the whole of stage-1, then at handoff loses `sleep` from
+`PATH`. `while true` with a failing body and no delay is a busy loop; it pins a
+core and, if the body writes to `/dev/console`, floods the console. Observed
+still spinning at 428 s of uptime, starving stage-2 badly enough to look like a
+stage-2 hang — and it had been present on every boot since the port began.
+
+Anything spawned from stage-1 that outlives it must fail closed:
+
+- absolute store paths for every binary, never `PATH`
+- loop on the resource itself (`while File.exist?(node)`), never on `true`
+- `|| exit 0` on writes, so a vanished path ends the process instead of
+  retrying forever
+
+The general rule: a stage-1 helper that is still running after switch_root is
+running in an environment nobody designed. Prefer letting it exit at handoff and
+re-establishing the behaviour as a stage-2 unit.
+
 ## Common stage-1 failures
 
 | Symptom | Cause |
 |---|---|
 | `TASKS_HANG_TIMEOUT`, unresolved `Tasks::Target<SwitchRoot>` | no rootfs found; `/dev/disk/by-label/NIXOS_SYSTEM` does not exist |
+| stage-2 crawls or appears hung, logs clean | a stage-1 helper survived switch_root, lost `PATH`, and is busy-looping on the console |
 | Task never runs, no error | nothing attached it to a target |
 | Task runs too early against missing hardware | depended on `Tasks::Graphics` instead of `Tasks::Graphics::FBDev` |
 | `NoMethodError` on `Dir` when testing locally | host mruby lacks mruby-dir; not a device problem |
