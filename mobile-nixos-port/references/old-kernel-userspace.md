@@ -119,6 +119,19 @@ subsystem is usable" are different measurements on a vendor tree.** A successful
 probe against a core that registers itself proves nothing about the leaf modules
 that do the work. Test the operation you actually need, not its namespace.
 
+A cheaper instance, and one that bites the moment the port is used for anything:
+`zramSwap.algorithm` defaults to `zstd`, which zram gained in **4.18**. The
+kernel publishes what it actually has, so ask it rather than the option:
+
+```sh
+cat /sys/block/zram0/comp_algorithm    # [lzo] lz4 deflate   <- no zstd
+```
+
+Writing an unsupported name returns `EINVAL`, and the failure lands on
+`systemd-zram-setup@zram0.service` — so the system boots fine, reports nothing
+interesting, and simply has no swap. On a phone with under 2 GB of RAM that is
+the binding constraint, and it is invisible unless you look for the unit.
+
 Wi-Fi is the same shape and the most likely thing to be asked for. On a MediaTek
 tree `CONFIG_MTK_COMBO_WIFI=y` and a devicetree node for the combo chip are both
 present, and neither is the driver: the combo symbols are the *transport* to the

@@ -3,6 +3,7 @@
 ## Contents
 
 - Consuming Mobile NixOS from a flake
+- Evaluate the device twice
 - Patching the Mobile NixOS tree
 - The kernel derivation
 - What the structured config layer overrides
@@ -41,6 +42,50 @@ eval that returns `""`, which is harmless.
 Android outputs live under `eval.outputs.android`: `android-bootimg`,
 `android-recovery`, `android-fastboot-images`. The kernel derivation is
 `eval.config.mobile.boot.stage-1.kernel.package`.
+
+## Evaluate the device twice
+
+Bring-up on an old kernel means editing systemd, and every systemd patch
+invalidates the whole closure below it. If the device declares a graphical
+session, that closure includes xorg-server, mesa, gstreamer, ffmpeg, pango,
+cairo and the font trees — none of which is on the path being debugged, all of
+which has to be cross-compiled, and most of which is not in the binary cache
+once systemd is patched.
+
+The eval function takes a `configuration` argument, so a second arm costs three
+lines and shares everything else — same kernel, same initrd, same patch set:
+
+```nix
+outputsFor = system: device:
+  let
+    eval     = evalFor system device { };
+    headless = evalFor system device { mobile.session.<session>.enable = false; };
+  in {
+    "${device}-fastboot-images"          = eval.outputs.android.android-fastboot-images;
+    "${device}-system"                   = eval.config.system.build.toplevel;
+    "${device}-headless-fastboot-images" = headless.outputs.android.android-fastboot-images;
+    "${device}-headless-system"          = headless.config.system.build.toplevel;
+  };
+```
+
+Spell the session's `enable` in the device file as `lib.mkDefault true`, or the
+override collides with it.
+
+Measured on one MT6762G port:
+
+| | full | headless |
+|---|---|---|
+| toplevel closure | 2.6 GiB, 980 paths | 1.0 GiB, 647 paths |
+| `system.img` | 4.08 GiB | 2.22 GiB |
+
+The headless closure was a strict subset — nothing appeared that the full arm
+did not already have — and `boot.img` was byte-identical, so switching arms is a
+rootfs write with no reflash. **Check that second point before relying on it**;
+it holds only while the session changes nothing in stage-1.
+
+Verify the arm still contains what makes the device reachable (sshd, the gadget
+network unit, mDNS, the VPN) by listing `etc/systemd/system` in the built
+toplevel. A headless arm that also drops your only transport is a reflash.
 
 ## Patching the Mobile NixOS tree
 

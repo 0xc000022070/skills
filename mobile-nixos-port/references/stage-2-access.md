@@ -396,3 +396,19 @@ before it is gone without a message, and the daemon comes back looking exactly
 like a fresh install.
 
 Sequence: deploy, boot, verify routing, *then* enrol.
+
+Once enrolled, that state is a handful of files and re-enrolling is a browser
+round trip you cannot automate — so carry it across the next deploy instead of
+paying for it again:
+
+```sh
+ssh <device> 'tar --exclude="*.log*" -cf - -C /var/lib <daemon>' > <daemon>-state.tar
+# deploy, boot
+ssh <device> 'systemctl stop <daemon>; tar -xf - -C /var/lib' < <daemon>-state.tar
+ssh <device> 'systemctl start <daemon>'
+```
+
+Take the backup **before** you need it, and check the archive lists the state
+file rather than trusting the exit code — GNU tar treats a misplaced `--exclude`
+as an error *after* writing a complete archive, so a non-zero exit here does not
+mean an empty one.
