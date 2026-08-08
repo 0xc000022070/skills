@@ -119,6 +119,23 @@ subsystem is usable" are different measurements on a vendor tree.** A successful
 probe against a core that registers itself proves nothing about the leaf modules
 that do the work. Test the operation you actually need, not its namespace.
 
+Wi-Fi is the same shape and the most likely thing to be asked for. On a MediaTek
+tree `CONFIG_MTK_COMBO_WIFI=y` and a devicetree node for the combo chip are both
+present, and neither is the driver: the combo symbols are the *transport* to the
+connsys subsystem, while the netdev driver (`wlan_drv_gen4m`) is out of tree and
+its firmware blobs live in the vendor partition. The measurement that settles it
+takes one command each and none of them is the config:
+
+```sh
+ls /sys/class/ieee80211/     # no phy   -> no driver bound
+rfkill list                  # empty    -> nothing registered
+lsmod                        # empty on an all-builtin kernel; not evidence either way
+```
+
+A device that answers "nothing" to all three has silicon and no driver, and the
+work is a driver build plus firmware extraction — days, not an evening. Say so as
+a rung, and do not let `=y` in a defconfig imply a working radio.
+
 ## Where the code lives moves between systemd versions
 
 Before writing a patch, locate the code in the version nixpkgs ships, not the

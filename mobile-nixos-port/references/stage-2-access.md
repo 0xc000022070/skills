@@ -9,6 +9,7 @@
 - dhcpcd bids on interfaces that go nowhere
 - Two ssh servers on one link
 - mDNS, and which resolver answered
+- Internet for a device whose only link is the build host
 - What to hold off until the last deploy
 
 ## `running` with zero failed units is not evidence
@@ -271,6 +272,120 @@ resolvectl query --type=A <host>.local
 ssh <device> 'avahi-browse -rpt _ssh._tcp'     # what the device actually claims
 # =;rndis0;IPv4;<host>;_ssh._tcp;local;<host>.local;172.16.42.1;22;
 ```
+
+## Internet for a device whose only link is the build host
+
+A port with no Wi-Fi driver has exactly one path to the network: the gadget link.
+The device already has a default route via the host
+([above](#addressing-and-routing-without-a-device-unit)) — what is missing is a
+host willing to forward it.
+
+**The correct fix is masquerading on the host**, and it is worth stating first
+because everything below is a workaround for not having it:
+
+```sh
+sysctl -w net.ipv4.ip_forward=1
+nft add table ip nat
+nft add chain ip nat postrouting '{ type nat hook postrouting priority 100; }'
+nft add rule ip nat postrouting ip saddr 172.16.42.0/24 oifname "<uplink>" masquerade
+```
+
+That gives ICMP, UDP, DNS and NAT traversal, and the device needs no
+configuration at all — its route is already right. It needs root on the host, and
+that is the only reason to look further.
+
+### Without root on either side
+
+`ssh -R` reverse-forwards a port from the device to the host. No privilege is
+required at either end, and the transport is the ssh you already have.
+
+The obvious form is reverse *dynamic* forwarding — `ssh -N -R 1080 <device>`,
+OpenSSH 7.6+ — which puts a SOCKS5 proxy on the device's `127.0.0.1:1080`
+exiting through the host. **It does not work for Go programs.** Measured on one
+socket, in one minute:
+
+```
+curl --socks5-hostname 127.0.0.1:1080 https://…   ->  200
+tailscaled (Go proxy dialer)                      ->  proxyconnect tcp: socks connect
+                                                      127.0.0.1:1080->127.0.0.1:1080: EOF
+```
+
+Instant EOF, not a timeout. ssh's built-in SOCKS server is minimal and the Go
+client's handshake does not survive it. Do not spend the afternoon on it — change
+protocol. **HTTP CONNECT is handled natively by every Go client, by `curl`, and
+by anything reading `HTTPS_PROXY`.** Run a CONNECT proxy on the host and use a
+*plain* remote forward:
+
+```sh
+tinyproxy -d -c tinyproxy.conf            # Port 3128, Listen 127.0.0.1, Allow 127.0.0.1
+ssh -N -R 127.0.0.1:3128:127.0.0.1:3128 <device>
+```
+
+Then point the consumer at it. For a systemd service, an environment drop-in:
+
+```
+# /etc/systemd/system/<svc>.service.d/proxy.conf
+[Service]
+Environment=HTTPS_PROXY=http://127.0.0.1:3128
+Environment=HTTP_PROXY=http://127.0.0.1:3128
+Environment=NO_PROXY=127.0.0.1,localhost
+```
+
+Three traps, each of which cost a debugging round:
+
+- **A host-side listener is the wrong shape.** Binding a proxy on the host's
+  `172.16.42.2` and pointing the device at it puts the host firewall in the path;
+  on NixOS only port 22 is open on that interface and the connection is simply
+  dropped. Reverse-forwarding rides the ssh session that already works.
+- **`ControlMaster auto` breaks a persistent `-R` tunnel.** The second session
+  reuses the multiplexed socket, its forward request is refused, and
+  `ExitOnForwardFailure` exits — under a supervisor that is a restart loop
+  (`NRestarts=53` before it was diagnosed). Pass `-o ControlMaster=no -o
+  ControlPath=none`.
+- **A SIGKILLed client leaves the device-side `sshd-session` holding the port.**
+  Every reconnect then fails with `remote port forwarding failed for listen port
+  N`, which reads like a config error. Kill the orphan on the device.
+
+Supervise it — a tunnel started from a shell dies with the shell:
+
+```sh
+systemd-run --user --unit=<device>-httptunnel --collect \
+  --property=Restart=always --property=RestartSec=2 -- <path>/http-tunnel.sh
+```
+
+### What a CONNECT proxy can and cannot carry
+
+TCP only. A mesh VPN still enrols and still works, but relayed:
+
+| | over host NAT | over an HTTP CONNECT proxy |
+|---|---|---|
+| control plane, TLS | yes | yes |
+| UDP / NAT traversal | yes | **no** — `netcheck` reports `UDP: false` |
+| peer path | direct | DERP relay |
+| ICMP | yes | no |
+
+Enrolment through the proxy is genuinely enough to be reachable from anywhere —
+confirm it by the relay, not by the login succeeding:
+
+```sh
+tailscale status --json | jq '.Self.Relay, .Self.Online'   # "den", true
+journalctl -u tailscaled | grep 'derp-'                    # magicsock: derp-16 connected
+```
+
+A peer on the same USB link still connects *directly* (`tailscale ping` →
+`pong … via 172.16.42.1:41641`), because that path needs no proxy. Off-LAN peers
+take the relay. Run `netcheck` from inside the service's environment, not from a
+bare shell — without the proxy variables it returns an empty result that looks
+like a broken daemon.
+
+### It is not durable until it is in the repo
+
+A `/run/systemd/system/*.d/` drop-in is the fastest way to test this and it does
+not survive a reboot. On NixOS you cannot promote it in place either:
+`/etc/systemd/system` is a symlink into the store. Persisting the proxy
+configuration means a rebuild and a deploy — which destroys the enrolment state
+the proxy existed to obtain (below). Decide which you want before you enrol:
+host NAT needs no device change at all and therefore no redeploy.
 
 ## What to hold off until the last deploy
 
