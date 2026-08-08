@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jetson NixOS"
+  short_description: "Run NixOS on Jetson: installer image, JetPack firmware, NVMe install, console"
+  default_prompt: "Use $jetson-nixos to bring this Jetson up on NixOS, one falsifiable rung at a time."

@@ -32,7 +32,21 @@
         "systemd",
         "adb",
         "fbdev",
-        "postmarketos"
+        "postmarketos",
+        "udev",
+        "rndis",
+        "mdns",
+        "jetson",
+        "orin",
+        "tegra",
+        "jetpack",
+        "l4t",
+        "cuda",
+        "aarch64",
+        "cross-compilation",
+        "uefi",
+        "edk2",
+        "disko"
       ]
     }
   ]

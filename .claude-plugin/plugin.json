@@ -10,6 +10,7 @@
   "repository": "https://github.com/0xc000022070/skills",
   "skills": [
     "./android-firmware-lab",
+    "./jetson-nixos",
     "./mobile-nixos-port",
     "./react-native-optimistic-ui",
     "./zen-browser-internals",
