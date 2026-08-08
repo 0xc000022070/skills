@@ -29,10 +29,32 @@ the journal:
 | udev spawns workers but watches none | `pidfd_open()` | 5.3 |
 | hundreds of dropped uevents | synthetic-uuid `kobject_synth_uevent()` | 4.13 |
 | workers become permanent zombies | `SIGCHLD` blocked because the pidfd path was assumed | consequence of the above |
+| a unit dies instantly with no output, `SystemCallFilter=` set | `SCMP_ACT_KILL_PROCESS` | 4.14 |
+| `systemd-machine-id-commit` fails on a namespace check | `NS_GET_NSTYPE` ioctl | 4.11 |
+| `systemd-tmpfiles --clean` fails on every path | `STATX_ATTR_MOUNT_ROOT`, used only as a hint but demanded as mandatory | 5.8 |
 
 Each of these was found the same way: boot, read the failure, count it, patch
 one thing, boot again. The counts matter — a four-digit repetition identifies a
 per-device or per-event code path, a single occurrence identifies a startup path.
+
+Three recurring shapes are worth naming, because the fix follows from the shape:
+
+- **A capability probed at the wrong granularity.** systemd checks that libseccomp
+  *knows* `SCMP_ACT_KILL_PROCESS` and concludes the kernel accepts it. The
+  correct gate is the kernel's own answer, `seccomp_api_get() >= 3`; fall back to
+  `SCMP_ACT_ERRNO`. The symptom is a service that "starts and exits" with an
+  empty journal, because the process is killed before it writes anything.
+- **An optional attribute treated as mandatory.** `xstatx_full()` returns
+  `-EUNATCH` for an attribute the kernel does not report. Where systemd only
+  *hints* on the result, the fix is to pass `/* mandatory_attributes= */ 0`, test
+  `FLAGS_SET(sx.stx_attributes_mask, …)` before reading the bit, and fall back to
+  `is_mount_point_at()`. The `stx_attributes_mask` test is load-bearing: without
+  it a kernel that zeroes the field reads as a definite "no".
+- **A version gate written against the wrong tree.** An upstream comment saying a
+  feature is "6.11+" often dates the *systemd* use, not the kernel interface —
+  `NS_GET_NSTYPE` has existed since 4.11, and nsfs already names inodes
+  `mnt:[4026531840]`, matching `namespace_info[].proc_name`. Check the kernel
+  history, not the comment.
 
 ## Failures with no log at all
 
@@ -74,6 +96,45 @@ apply:
   deciding it cannot continue. Distinguishing them changes where you look:
   panic → pstore, hang → task graph, freeze → PID 1's own startup path.
 
+## Not every failure is a missing syscall
+
+Some units fail because the vendor kernel has a subsystem *half* enabled. These
+never appear in a syscall table and no patch fixes them — the fix is
+configuration.
+
+The canonical one is nftables. `CONFIG_NF_TABLES=y` is set, so the core
+registers the netlink family and every probe succeeds: the module loads, the
+socket opens, `nft list ruleset` returns cleanly. Then every rule that uses an
+actual expression fails with `ENOENT`, because `NFT_COMPAT`, `NF_TABLES_INET`
+and the per-expression modules are unset. NixOS's `firewall.service` dies on its
+first real rule.
+
+```nix
+networking.nftables.enable = false;
+networking.firewall.package = pkgs.iptables-legacy;
+```
+
+The lesson generalises past netfilter: **"the subsystem is present" and "the
+subsystem is usable" are different measurements on a vendor tree.** A successful
+probe against a core that registers itself proves nothing about the leaf modules
+that do the work. Test the operation you actually need, not its namespace.
+
+## Where the code lives moves between systemd versions
+
+Before writing a patch, locate the code in the version nixpkgs ships, not the
+version you remember. systemd 254 split `src/core/exec-invoke.c` out of
+`libsystemd-core-<v>.so` into a separate `/lib/systemd/systemd-executor` binary,
+so a patch aimed at the old location applies to a file that is still there and
+changes a code path that no longer runs. Verify by finding which artifact
+contains the symbol after a build.
+
+**Never hand-swap systemd's private libraries between builds.**
+`libsystemd-shared-<v>.so`, `libsystemd-core-<v>.so` and `systemd-executor` are
+versioned by release but not by *your patch set*, so mixing them is undetectable
+at load time and PID 1 freezes inside `manager_new()` — the silent shape above,
+with no log and no way back except a reflash. Deploy whole images. When testing a
+systemd change, run the unpatched control arm first so a freeze can be attributed.
+
 ## Patching it
 
 Carry the patches in your own repo. Keep the *list* in its own file so nothing
@@ -87,8 +148,15 @@ can hold a stale copy of it:
   ./0004-systemd-uevent-no-synthetic-uuid.patch
   ./0005-systemd-block-sigchld-without-pidfd.patch
   ./0006-systemd-statx-sync-flags-and-mount-root.patch
+  ./0015-systemd-seccomp-kill-process-api-gate.patch
+  ./0016-systemd-ns-get-nstype-fallback.patch
+  ./0017-systemd-tmpfiles-mount-root-optional.patch
 ]
 ```
+
+Expect this list to reach the high teens on a 4.9 tree before it converges, and
+number the files in the order you found them — the numbering is a record of the
+boot attempts, and renumbering to close gaps destroys that.
 
 Apply it through an overlay:
 

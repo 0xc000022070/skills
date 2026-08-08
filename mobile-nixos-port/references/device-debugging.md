@@ -6,6 +6,7 @@
 - The ext4 magic latch
 - A log ring on unused disk
 - Writing a rootfs over adb
+- Retiring adb for ssh
 - Host tooling belongs in the flake
 
 ## The problem
@@ -41,8 +42,20 @@ reversible, and touches nothing else in the filesystem.
 Arm it by racing the window: start a poller *before* powering the phone on, and
 have it busy-poll for the device rather than sleep between attempts.
 
+**It can also be armed from a running stage-2, with no power cycle.** ext4 keeps
+no private copy of the superblock — `sbi->s_es` points into a `buffer_head` in
+the block device's page cache — so zeroing offset 1080 on the mounted partition
+takes effect on the next mount, and an orderly `sync; sync; echo b >
+/proc/sysrq-trigger` parks the device in stage-1 on the way back up. That turns
+the latch from a race into a one-line loop: latch, reboot, deploy over stage-1,
+reboot, verify.
+
 This is what makes everything else on this page possible. Establish it before
 you need it.
+
+**Never boot the stock OS while the magic is zeroed.** Android reacts to an
+unmountable `userdata` by reformatting it, which destroys both the rootfs and
+any log ring past it. The latch is safe only against your own stage-1.
 
 ## A log ring on unused disk
 
@@ -86,6 +99,19 @@ Record the ceiling next to the layout, in the resize instructions, and in the
 handoff — a later "reclaim the free space on the rootfs partition" is a
 completely reasonable thing to do and it silently destroys the mechanism.
 
+The mechanism that grows it is `mobile.system.autoResize`, and it has **two**
+effects: `Tasks::AutoResize` in the initrd, and an `x-systemd.growfs` mount
+option in stage-2. Disabling one leaves the other, so the filesystem re-grows
+onto the ring on every boot while the config appears to forbid it. Force both
+off, then size the filesystem deliberately (`resize2fs <dev> <blocks>` with the
+ring's start block as the ceiling) rather than leaving it at the image default.
+
+Watch for the NixOS `filterOverrides` trap while doing this: an upstream
+`mkDefault` on a *whole attrset* is discarded wholesale by any sibling
+definition of higher priority, taking the attributes you did not mean to
+override with it. Put `mkDefault` on the leaves and `mkForce` inside, not
+outside.
+
 ## Writing a rootfs over adb
 
 `adb exec-in` truncates bulk streams. Chunk the image, hash each chunk on the
@@ -117,6 +143,30 @@ page cache.
 Note that `adb reboot` does not work from a stage-1 shell (`reboot failed: -1`);
 `sync; sync; echo b > /proc/sysrq-trigger` does.
 
+## Retiring adb for ssh
+
+Once stage-1 runs dropbear on the gadget network
+([stage-1.md](stage-1.md)), stop deploying over adb. The transports fail
+independently — adb and RNDIS are separate functions on the same gadget, and
+adbd wedging in `ffs_epfile_io` with the gadget still `CONFIGURED` and no host
+disconnect is a routine event — so ssh is both a second channel and a better
+one:
+
+| | `adb exec-in` | ssh |
+|---|---|---|
+| bulk write | truncates silently, needs per-chunk hashing | streams whole |
+| exit status | not propagated; empty output is ambiguous | real exit code |
+| measured throughput | 32 MiB chunks with verification | 12.6 MB/s host to device |
+
+Keep the chunking logic anyway — it is what makes an interrupted deploy
+resumable, and it is the only thing standing between a dead transport and a
+half-written superblock. What ssh removes is the *ambiguity*, not the need to
+verify.
+
+Reach for ssh first whenever adb goes quiet, and use the port to tell which
+stage answered before concluding the device is dead
+([stage-2-access.md](stage-2-access.md)).
+
 ## Host tooling belongs in the flake
 
 These operations start life as shell scripts in `/tmp`. That costs real work
@@ -134,7 +184,7 @@ Expose them as flake apps: `nix run .#<device>-latch`, `-log`, `-deploy`,
 `-verify`, `-flash-bootimg`, `-reboot`. `writeShellApplication` runs shellcheck
 and fails the build on findings, so the scripts stay honest.
 
-Three things worth building in:
+Five things worth building in:
 
 - **An identity guard.** Every tool checks a device-unique string from
   `/proc/cmdline` before touching a block device, and exits non-zero if it does
@@ -149,6 +199,19 @@ Three things worth building in:
   boots from `recovery`, and it will overwrite the stock Android that was the
   only way back. Default to the partition the port actually boots from, print
   the resolved target before writing, and warn when the fallback is the target.
+- **Refuse to write a mounted filesystem.** Compare the target's `major:minor`
+  from `/proc/self/mountinfo`, not device paths — `/dev/block/mmcblk0p41`,
+  `/dev/mmcblk0p41` and a by-name symlink are one partition under three names,
+  and a string comparison passes all three.
+- **Refuse to write on a flat battery.** A phone in bring-up is often
+  discharging even while plugged into a PC port, and a deploy interrupted by a
+  power-off lands mid-image. A `MIN_BATTERY` floor around 40% costs nothing and
+  prevents the one failure with no recovery path over USB.
+
+Resolve the partition by its **GPT label**, via `PARTNAME=` in the sysfs
+`uevent`, rather than trusting the `by-name` directory to exist — stage-1's
+minimal `/dev` frequently does not populate it, and falling back to an index at
+that moment is exactly the mistake the rule above exists to prevent.
 
 Also worth knowing while building this: **flakes cannot see untracked files**, so
 a new patch or module must be `git add`-ed — staged, not committed — before

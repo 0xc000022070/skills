@@ -1,6 +1,6 @@
 ---
 name: mobile-nixos-port
-description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI and root solutions, use android-firmware-lab.
+description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, reaching a device that boots clean yet is unreachable or ignoring its own network config, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI and root solutions, use android-firmware-lab.
 allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*) Bash(sha256sum:*) Bash(file:*)
 disable-model-invocation: false
 metadata:
@@ -31,15 +31,21 @@ rung you have not observed.
 | Panel shows readable console | text on the panel, not just a lit backlight |
 | Stage-2 switch_root | a rootfs exists and is found by label |
 | PID 1 reaches a service manager | a unit ran — journal on disk, or adbd back after handoff |
+| Stage-2 configuration applied | the *effect* is observed: `ip route`, a resolved name, a reachable port |
 | Session starts | the UI is on the panel and takes input |
 
 Each rung has its own failure domain. Naming the last rung you actually reached
 is the whole of the debugging method; guessing past it wastes boot attempts.
 
-The last two rungs are separated deliberately. `switch_root` succeeding proves
-the rootfs is readable and the label resolved — it proves nothing about systemd
+The last rungs are separated deliberately. `switch_root` succeeding proves the
+rootfs is readable and the label resolved — it proves nothing about systemd
 starting, and a PID 1 that freezes in its own startup path leaves a device that
 is warm, powered and silent. "It boots" is not a rung.
+
+Nor is `systemctl is-system-running` = `running`. A device reaches that state,
+with zero failed units, while its network configuration was never applied —
+units whose conditions were not met are *skipped*, and skipped is not failed.
+The rung is the effect, never the unit.
 
 ## Route the work
 
@@ -50,6 +56,7 @@ is warm, powered and silent. "It boots" is not a rung.
 | Black panel, white band, lit-but-blank, no KMS, fbcon, backlight | [display-bringup.md](references/display-bringup.md) |
 | systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
 | Device drops off USB at handoff, no logs, writing a rootfs over adb | [device-debugging.md](references/device-debugging.md) |
+| Booted but unreachable, no default route, declarative config ignored, ssh/mDNS | [stage-2-access.md](references/stage-2-access.md) |
 | Stock artifacts, AVB, partition maps, recovery trees, rooting | skill `android-firmware-lab` |
 
 ## Hard rules
@@ -72,7 +79,13 @@ is warm, powered and silent. "It boots" is not a rung.
   root access with no password and no key. Write a task that runs dropbear with
   `-s` and an explicit `authorized_keys`.
 - A build is not a boot. A boot is not an installation. One hardware revision
-  proves nothing about another.
+  proves nothing about another. A unit that ran is not an effect that happened.
+- Measure the effect, not the abstraction that was supposed to produce it. `ip
+  route` over `networking.defaultGateway`, a resolved name over an active
+  `avahi-daemon`, a re-read of the block device over the page cache that just
+  served the write.
+- Deploy whole images. Hand-swapping individual components of a patched systemd
+  between builds freezes PID 1 with no log and costs a reflash.
 
 ## Verify commands
 
@@ -111,3 +124,9 @@ build fetches on the order of a gigabyte per device.
 State the rung reached, the evidence that proves it, the unresolved assumptions,
 and the restore path. Report untested hardware as untested — touch, Wi-Fi,
 audio, modem, charging and suspend are not implied by a console.
+
+Keep `supportLevel = "broken"` until each of those has been exercised, and say
+in the device file what it marks: what is *untested*, not what is failing. A
+port that boots to a clean multi-user system with a shell over the network is
+still broken by that definition, and describing it accurately is what stops the
+next reader from trusting a rung nobody climbed.

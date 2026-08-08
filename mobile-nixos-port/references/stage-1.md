@@ -157,6 +157,11 @@ Two things that are not obvious:
 Keep the allowed keys in one checked-in file at the repo root, with a comment
 saying that a fork which does not replace the list grants its author root.
 
+**Run it on a port stage-2 does not use** — 2222, not 22. It outlives
+`switch_root` and would otherwise hold the port openssh wants, and once stage-2
+is up it can no longer authenticate anyone at all. Which port answers then tells
+you which stage you are talking to, which is worth more than the port number.
+
 ## What a spawned task survives at switch_root
 
 `System.spawn` detaches, and a detached process is **not** killed by
@@ -188,6 +193,30 @@ The general rule: a stage-1 helper that is still running after switch_root is
 running in an environment nobody designed. Prefer letting it exit at handoff and
 re-establishing the behaviour as a stage-2 unit.
 
+The second worked example is worse, because the process appears to keep working.
+dropbear spawned in stage-1 is still listening on its port under stage-2, and
+still completes a TCP handshake — but it kept the *initramfs* as its root, and
+stage-1 empties that:
+
+```
+# head -1 /proc/<dropbear-pid>/mountinfo
+0 0 0:1 / / rw - rootfs rootfs rw     <- not the ext4 root PID 1 uses
+# ls /proc/<pid>/root/etc/passwd      -> No such file or directory
+```
+
+No `/etc/passwd` means `getpwnam("root")` fails, so there is no home directory
+to search for `authorized_keys`. It offers publickey, rejects the correct key,
+and logs nothing. Nothing you write into stage-2's filesystem can reach it.
+An open port is not a working service; see
+[stage-2-access.md](stage-2-access.md).
+
+**Processes are not the only thing inherited.** `/run` is a tmpfs that stage-2
+moves rather than recreates, so stage-1's udev database arrives intact under
+stage-2 — including records for gadget interfaces that were never tagged
+`systemd`. That silently disables every declarative NixOS unit bound to those
+devices, on a system that reports `running` with zero failed units.
+[stage-2-access.md](stage-2-access.md) is the whole of that failure.
+
 ## Common stage-1 failures
 
 | Symptom | Cause |
@@ -199,3 +228,5 @@ re-establishing the behaviour as a stage-2 unit.
 | `NoMethodError` on `Dir` when testing locally | host mruby lacks mruby-dir; not a device problem |
 | `mount` exits 127 | `System.mount` needs `/.proc`; call `System.run("mount", ...)` |
 | SSH refuses every key silently | missing `libnss_files.so.*`, or store-symlinked `authorized_keys` |
+| SSH refuses every key **only after stage-2 comes up** | stage-1's dropbear still holds the port; its root is the emptied initramfs, so it has no `/etc/passwd` |
+| stage-2 reports `running`, zero failed units, and none of the network config applied | stage-1's udev database was inherited through `/run`; the interface is untagged, so its `.device` unit never activates |
