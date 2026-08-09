@@ -125,6 +125,23 @@ wrong routinely:
   upgrade or be ready to redo it. `\EFI\BOOT\BOOTAA64.EFI` below is why that is
   survivable.
 
+- **The firmware's own `{auto_created_boot_option}` entries can sit ahead of
+  yours.** PXEv4/v6 and HTTPv4/v6 ahead of `Linux Boot Manager` still boots, it
+  just pays four network timeouts first. Measured on an Orin Nano Super: with
+  the NVMe entry first the board was back on SSH 40 s after `systemctl reboot`.
+
+`efibootmgr` is not in a default NixOS closure, and the QSPI variable store is
+exactly the thing you cannot inspect from a rescue medium after the fact. Put it
+in `environment.systemPackages` on any Jetson you will reinstall more than once.
+
+Deleting the stale ones is safe when each target PARTUUID is absent from
+`lsblk`, and it is worth doing before it becomes a dozen identically named
+entries:
+
+```sh
+efibootmgr -q -B -b 0008
+```
+
 `\EFI\BOOT\BOOTAA64.EFI` is the removable-media fallback and systemd-boot
 installs it alongside the variable entry. It is found by device-path autoboot
 with no NVRAM involvement, which makes it the thing that still works after a
