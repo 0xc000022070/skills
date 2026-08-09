@@ -51,6 +51,64 @@ in builtins.toJSON {
 `{"avahi":false,"openssh":false,"firewall":true,...}` is the lockout, visible
 minutes before it costs anything.
 
+## The second lockout: credentials
+
+sshd running and a console attached still leave you out if you cannot
+authenticate. Two options look interchangeable and are not:
+
+| Option | When it is applied |
+|---|---|
+| `initialHashedPassword` | **only when the account is created** |
+| `hashedPassword` | reasserted on every activation |
+
+`initialHashedPassword` is a seed. If the hash in the flake is wrong, or nobody
+recorded the plaintext, the account exists with a password nobody knows and
+`nixos-rebuild switch` will never correct it — the option is a no-op from the
+second activation onward. On a board whose only console is a serial line you did
+not wire, that is unrecoverable without editing the kernel command line.
+
+Declare the flake as the sole authority instead:
+
+```nix
+users.mutableUsers = false;
+users.users.<name>.hashedPassword = "$6$...";
+```
+
+`mutableUsers = false` rewrites `/etc/shadow` on every activation, so any install
+from the repo yields the same login and a local `passwd` cannot silently
+diverge. It also makes the credential reproducible, which `passwd` at a rescue
+shell is not — that recovers one board, proves nothing about the config, and is
+worth naming as the hack it is.
+
+If the hash is a weak default in a public repo, keep it usable at the physical
+console and nowhere else:
+
+```nix
+services.openssh.settings.PasswordAuthentication = false;
+```
+
+### Login managers silently displace each other
+
+`services.getty.autologinUser` is the passwordless door that makes a forgotten
+password survivable. Declaring a second login manager takes it away without an
+error, a warning, or an eval failure:
+
+- `services.greetd` claims **tty1** and replaces the autologin getty there.
+- `services.xserver.displayManager.lightdm` sits on **tty7**, so it coexists.
+
+greetd plus `getty.autologinUser` therefore produces a password prompt on tty1
+and no indication that the autologin was overridden. Declare one login manager.
+Check what actually owns the ttys rather than reading the config:
+
+```sh
+systemctl list-units 'getty@*' 'greetd*' 'display-manager*'
+```
+
+Note also that the option paths moved on unstable:
+`services.displayManager.autoLogin.{enable,user}` and
+`services.displayManager.defaultSession` are no longer under `services.xserver`,
+while `services.xserver.displayManager.lightdm.enable` stayed.
+
 ## Distinguishing the failure
 
 ```sh
@@ -158,3 +216,36 @@ Tailscale sidesteps the whole question — MagicDNS gives the node a name withou
 avahi and without being on the same L2. It is a good answer for a board you will
 administer remotely, and a bad answer for first contact, because bringing it up
 requires the console you do not have yet.
+
+With MagicDNS the bare node name resolves, so the client entry needs no address
+at all — no tailnet suffix, no IP to go stale:
+
+```
+Host <host> <host>.local
+  Port <port>
+  User <name>
+```
+
+## Moving sshd off 22
+
+Worth doing on an exposed board, with one Jetson-specific hazard: every firewall
+hole written by hand keeps pointing at 22.
+
+```nix
+services.openssh.ports = [963];
+services.endlessh = { enable = true; port = 22; openFirewall = true; };
+```
+
+`services.openssh` opens its own ports. Interface-scoped rules do not — the USB
+device-mode gadget above hardcodes 22, and that is exactly the rescue path you
+need when the move goes wrong. Follow the option instead:
+
+```nix
+networking.firewall.interfaces.usb0.allowedTCPPorts =
+  config.services.openssh.ports ++ [53];
+```
+
+endlessh on 22 answers with an endless banner, so a scanner hangs instead of
+finding the port closed and moving on. It also means a client that omits the
+port hangs rather than failing fast — put the port in `~/.ssh/config` or expect
+to misread the tarpit as a dead board.

@@ -73,6 +73,36 @@ fetches a stale tree — most painfully, one missing the nixpkgs fixes below,
 which fails the firmware build on a board with no console. Either push before
 installing, or copy the working tree over and install from that path.
 
+### The script is baked in; the flake is not
+
+Packaging the procedure means it lands in the image's `/nix/store` through
+`environment.systemPackages`. So the two halves have different ages, and it is
+easy to get backwards:
+
+| Artifact | Source at install time |
+|---|---|
+| the install command in `$PATH` | the image's store — frozen at the build commit |
+| `configuration.nix`, `disko-config.nix`, `modules/` | the `git clone` — current |
+
+Pushing a fix to the script does not reach a card that was already written.
+Rebuilding and rewriting the image for a one-line shell fix is the wrong answer;
+run the freshly cloned copy instead:
+
+```sh
+sudo setsid nohup bash "$DOTS_DIR/installer/infection.sh" > install.log 2>&1 </dev/null &
+```
+
+Confirm which body is live before assuming. A script invoked as
+`bash -c "$(declare -f infect); infect"` prints its whole text in the process
+list:
+
+```sh
+pgrep -af "[i]nfect"
+```
+
+The character class is not decoration — a bare `pkill -f disko` over SSH matches
+the pattern inside your own remote shell's command line and kills the session.
+
 ## EDK2 firmware and nixpkgs-unstable
 
 The JetPack UEFI firmware build runs a Python toolchain (`edk2-pytool-*`,

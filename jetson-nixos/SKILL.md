@@ -1,11 +1,11 @@
 ---
 name: jetson-nixos
-description: Run NixOS on NVIDIA Jetson hardware via jetpack-nixos — cross-compile an aarch64 installer image from x86_64, pick a JetPack major version and reconcile it with the QSPI firmware, install to NVMe with disko, and keep a console on a board whose HDMI carries no Linux console. Use when building a Jetson installer ISO, choosing between JetPack 5/6/7, deciding whether a recovery-mode QSPI flash is actually required, fighting an EDK2 firmware build that fails on nixpkgs-unstable Python packages, diagnosing a board that boots partway and then throws mmc I/O errors, installing to NVMe on an Orin Nano or Orin Nano Super devkit, or recovering a board that pings but answers on no port. Specific to Orin where it matters; the boot, console and media reasoning generalizes across Tegra.
+description: Run NixOS on NVIDIA Jetson hardware via jetpack-nixos — cross-compile an aarch64 installer image from x86_64, pick a JetPack major version and reconcile it with the QSPI firmware, install to NVMe with disko, and keep a console on a board whose HDMI carries no Linux console. Use when building a Jetson installer ISO, choosing between JetPack 5/6/7, deciding whether a recovery-mode QSPI flash is actually required, fighting an EDK2 firmware build that fails on nixpkgs-unstable Python packages, diagnosing a board that boots partway and then throws mmc I/O errors, installing to NVMe on an Orin Nano or Orin Nano Super devkit, recovering a board that pings but answers on no port, or locked out of one whose password nobody knows. Specific to Orin where it matters; the boot, console and media reasoning generalizes across Tegra.
 allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(lsusb:*) Bash(lsblk:*) Bash(sha256sum:*) Bash(efibootmgr:*) Bash(dmesg:*) Bash(free:*) Bash(df:*)
 disable-model-invocation: false
 metadata:
   author: Luis Quiñones
-  version: "1.0.0"
+  version: "1.1.0"
   category: nix
 ---
 
@@ -34,13 +34,15 @@ observed, and do not infer a later rung from an earlier one.
 | Boot entry written | `efibootmgr` shows an entry whose PARTUUID matches the real ESP |
 | Installed system boots unaided | the install medium is removed and it still comes up |
 | Installed system is reachable | a **port answers** — ping is not a rung |
+| You can get in | a credential authenticates — a port answering is not a login |
 | Firmware major matches kernel major | `nixos-install` reports Current == Expected |
 
-The last two rungs are separated from "it boots" deliberately. A Jetson that
+The last rungs are separated from "it boots" deliberately. A Jetson that
 completed an install, boots from NVMe, and answers ICMP can still be a board you
 cannot get into at all, because nothing on it listens and its only console is a
-serial line you did not wire. That state is common and it is not a partial
-success.
+serial line you did not wire. A board that does listen and rejects every
+credential you have is the same dead end one step later. Both states are common
+and neither is a partial success.
 
 ## Route the work
 
@@ -48,7 +50,7 @@ success.
 |---|---|
 | Cross-compiled installer image, EDK2 firmware failing on nixpkgs Python | [installer-image.md](references/installer-image.md) |
 | JetPack/L4T/kernel versions, QSPI, `autoUpdate`, recovery mode, UEFI entries | [firmware-and-boot.md](references/firmware-and-boot.md) |
-| No console on HDMI, `ttyTCU0`, Type-C device mode, locking yourself out | [console-and-access.md](references/console-and-access.md) |
+| No console on HDMI, `ttyTCU0`, Type-C device mode, unknown password, login managers fighting over tty1, moving sshd off 22 | [console-and-access.md](references/console-and-access.md) |
 | SD cards that fail only on the board, mmc errors, disko, NVMe, OOM during install | [storage-media.md](references/storage-media.md) |
 
 ## Hard rules
@@ -63,6 +65,21 @@ success.
   ISO.** The installer image ships sshd and avahi; a target config that inherits
   neither produces a board that installs perfectly and is then unreachable.
   Decide the console story before the install, not after.
+- **Use `hashedPassword`, not `initialHashedPassword`.** The latter applies only
+  when the account is created, so a wrong or unrecorded hash cannot be fixed by
+  any later rebuild. Pair it with `users.mutableUsers = false` so the flake owns
+  `/etc/shadow` and the credential is reproducible. Recovering with `init=/bin/sh`
+  and `passwd` fixes one board and proves nothing about the configuration.
+- **Declare one login manager.** greetd claims tty1 and silently displaces
+  `services.getty.autologinUser`, removing the passwordless door with no warning.
+  lightdm sits on tty7 and coexists.
+- **The install script baked into the image and the flake it clones have
+  different ages.** Pushing a fix to the script does not reach a card that was
+  already written; only `configuration.nix` and friends are fetched fresh.
+- **Never verify an install by reading `/mnt/etc`.** Those are symlinks to
+  absolute `/nix/store` paths and resolve into the *installer's* store. Compare
+  `system.build.toplevel` against the installed profile instead — one
+  content-addressed path settles it.
 - **A host-side readback does not prove a card is good.** USB readers negotiate
   High Speed at 50 MHz; the Tegra controller runs UHS-I SDR104 at 208 MHz.
   Downgraded NAND passes the first and fails the second. `sha256sum` through a
@@ -105,6 +122,12 @@ sudo efibootmgr                                     # entry PARTUUID vs the ESP
 
 lsusb | grep 0955                                   # 7523 = recovery, 7020 = gadget
 ls /dev/ttyACM*                                     # host end of the ACM console
+
+# what was installed, without reading /mnt/etc into the wrong store
+nix eval --raw .#nixosConfigurations.<host>.config.system.build.toplevel
+readlink -f /mnt/nix/var/nix/profiles/system        # equal = same closure
+
+pgrep -af "[i]nfect"                                # bare -f matches your own ssh line
 ```
 
 ## Completion criteria
@@ -115,4 +138,5 @@ upgraded, whether it is scheduled for the next boot, and whether power was held
 through it.
 
 Do not report an install as finished while the only way back into the board is
-the medium you are about to remove.
+the medium you are about to remove, or while the credential that opens it is one
+nobody has tested.

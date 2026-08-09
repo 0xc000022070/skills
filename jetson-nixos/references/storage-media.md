@@ -175,3 +175,30 @@ built is lost, because it is all in the target's store:
 ```sh
 nixos-install --max-jobs 1 --flake /path#host
 ```
+
+## Verifying the installed system from the installer
+
+Do not read `/mnt/etc/*` to check what was installed. NixOS `/etc` entries are
+symlinks to **absolute** `/nix/store/...` paths, and outside a chroot those
+resolve into the *installer's* store. The result is confident and wrong:
+`sshd_config` reporting `Port 22`, the hostname reading `nixos`, units listed as
+absent — all of it describing the ISO, not the install.
+
+Either prefix the target root by hand:
+
+```sh
+readlink /mnt/etc/ssh/sshd_config          # /nix/store/<hash>-etc/etc/ssh/sshd_config
+cat /mnt/nix/store/<hash>-etc/etc/ssh/sshd_config
+```
+
+or skip file archaeology entirely. Store paths are content-addressed over the
+whole derivation graph, so one comparison settles what was installed:
+
+```sh
+nix eval --raw .#nixosConfigurations.<host>.config.system.build.toplevel
+readlink -f /mnt/nix/var/nix/profiles/system
+```
+
+Equal paths mean the installed closure is bit-for-bit the configuration you are
+holding. Unequal means it is not, and no amount of reading config files will
+tell you more than that.

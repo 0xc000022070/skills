@@ -111,8 +111,19 @@ wrong routinely:
   reinstalled a few times shows a dozen, all but one pointing at partitions that
   no longer exist.
 - **BootOrder can leave the install medium first.** `UEFI SD Device` ahead of
-  the NVMe entry means the next boot goes back into the installer. Remove the
-  medium rather than reordering NVRAM that a pending firmware upgrade may reset.
+  the NVMe entry means the next boot goes back into the installer. Pulling the
+  card is the robust fix and needs hands on the board; `efibootmgr -o` is the
+  remote one, and it does persist, because on Orin the variable store is in
+  QSPI:
+
+  ```sh
+  sudo efibootmgr                       # find the entry whose PARTUUID is the NVMe ESP
+  sudo efibootmgr -o 0016,0017,0014,0001
+  ```
+
+  Reordering is what a pending firmware upgrade may reset, so do it after the
+  upgrade or be ready to redo it. `\EFI\BOOT\BOOTAA64.EFI` below is why that is
+  survivable.
 
 `\EFI\BOOT\BOOTAA64.EFI` is the removable-media fallback and systemd-boot
 installs it alongside the variable entry. It is found by device-path autoboot
