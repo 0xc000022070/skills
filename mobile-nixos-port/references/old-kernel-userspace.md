@@ -149,6 +149,38 @@ A device that answers "nothing" to all three has silicon and no driver, and the
 work is a driver build plus firmware extraction — days, not an evening. Say so as
 a rung, and do not let `=y` in a defconfig imply a working radio.
 
+`systemctl show -p MemoryCurrent` is the same shape in miniature: systemd reads
+the whole cgroup accounting set to answer it, and on a tree missing `cpu.stat` it
+logs a failure for every call. Anything polling it in a loop manufactures its own
+journal noise. Read `memory.current` out of the unit's cgroup directly.
+
+## A udev that runs but tags nothing
+
+`systemd-udevd` being active, with `systemctl is-system-running` reporting
+`running`, does not mean device events are processed. On a vendor tree the
+worker can fail every event with `EINVAL` while the daemon itself stays healthy.
+Everything built on udev *tags* — rather than on the device node — then does
+nothing, without failing:
+
+- `services.logind.powerKey` never fires. logind only acts on input devices udev
+  handed it, and with no tags it holds zero descriptors under `/dev/input/`.
+  Measure it, do not infer it:
+
+  ```sh
+  ls -l /proc/"$(systemctl show -p MainPID --value systemd-logind)"/fd | grep input
+  ```
+
+- triggerhappy is socket-activated off the same tagging and dies the same way.
+- `90-backlight.rules` never grants the session write access to `brightness`.
+  Use a `systemd.tmpfiles` `z` rule against the `video` group instead.
+
+The node itself is fine, because **devtmpfs** creates it straight from the
+driver. Reading evdev directly is the way through: a dozen lines of C around
+`read(2)` on `/dev/input/eventN` filtering `EV_KEY` with `value == 1`. Decode
+which node and which code from `/proc/bus/input/devices` — its KEY bitmap is a
+little-endian word list, so bits 64–127 carry `KEY_POWER` (116) — rather than
+guessing. Node numbering is driver probe order, not a convention.
+
 ## Where the code lives moves between systemd versions
 
 Before writing a patch, locate the code in the version nixpkgs ships, not the

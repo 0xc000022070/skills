@@ -9,6 +9,8 @@
 - The palette trap (MediaTek mtkfb, OMAP lineage)
 - Nothing pans the framebuffer
 - The backlight is a DSI command, and it lies
+- Turning the panel off without deadlocking it
+- The console is not yours until printk stops writing to it
 - MediaTek display debugfs
 
 ## Triage ladder
@@ -189,6 +191,60 @@ value you write is not the value the panel receives.
 The bootloader hands over a **live** display: `is_lcm_inited = 1` derived from
 `/chosen` `atag,videolfb-*` makes `primary_display_init()` skip panel init
 entirely. Do not assume the kernel initialised the panel; usually it did not.
+
+## Turning the panel off without deadlocking it
+
+`FB_BLANK_POWERDOWN` is the portable way to blank a framebuffer. On mtkfb it is
+a trap:
+
+```sh
+echo 4 > /sys/class/graphics/fb0/blank    # do not
+```
+
+The write never returns. The writer and *every* `msm-fb-refresher` — stage-1's
+and stage-2's both — end up in `D` at `down`, on a semaphore nothing releases.
+Any SSH session that touched it hangs, the console freezes on its last painted
+frame, and only a reboot clears it. On a device whose sole debug channel is the
+USB gadget, that reboot is a physical power cycle.
+
+Blank the backlight instead, and do not expect it where the class name says:
+
+```sh
+ls /sys/class/backlight/                                  # often empty
+cat /sys/class/leds/lcd-backlight/{brightness,max_brightness}
+```
+
+Save the current level before zeroing it. `max_brightness` is not the level the
+bootloader or Android was using, and restoring to it is a bright surprise in a
+dark room.
+
+## The console is not yours until printk stops writing to it
+
+Anything that repaints the panel — a status dashboard, a menu, a picker — gets
+scrolled away by the kernel unless printk is silenced first, and the usual
+mechanisms report success while changing nothing:
+
+```sh
+tr ' ' '\n' < /proc/cmdline | grep -E 'console|loglevel'
+# console=tty0 console=ttyS0,921600n1 console=tty1 ignore_loglevel loglevel=4
+```
+
+`ignore_loglevel` forces **every** message to the console regardless of level, so
+`dmesg -n 1` and `setterm --msg off` both return 0 and do nothing. It is a
+writable module parameter, so it can be cleared without touching the boot image:
+
+```sh
+echo N > /sys/module/printk/parameters/ignore_loglevel   # now kernel.printk applies
+```
+
+`console=tty0` follows the *active* VT, so moving the TUI to a different VT does
+not isolate it either. Read the cmdline before designing around either mechanism.
+
+A poller on this kind of tree also generates its own noise: reading
+`/sys/class/power_supply/*` makes MediaTek fuel-gauge and charger drivers log a
+line per read. The printk prefix names the process that caused it —
+`(5)[5478:panel][fgauge_read_current]` — which is how you separate a chatty
+driver from a chatty reader of your own making.
 
 ## MediaTek display debugfs
 

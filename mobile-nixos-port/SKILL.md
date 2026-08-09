@@ -5,7 +5,7 @@ allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*
 disable-model-invocation: false
 metadata:
   author: Luis Quiñones
-  version: "1.0.0"
+  version: "1.1.0"
   category: nix
 ---
 
@@ -53,8 +53,8 @@ The rung is the effect, never the unit.
 |---|---|
 | Flake, device registry, kernel derivation, boot image, patch discipline | [nix-packaging.md](references/nix-packaging.md) |
 | Write or debug a stage-1 task, USB gadget, networking, SSH, logs | [stage-1.md](references/stage-1.md) |
-| Black panel, white band, lit-but-blank, no KMS, fbcon, backlight | [display-bringup.md](references/display-bringup.md) |
-| systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
+| Black panel, white band, lit-but-blank, no KMS, fbcon, backlight, blanking the panel, keeping printk off a console TUI | [display-bringup.md](references/display-bringup.md) |
+| systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently, a udev that tags nothing so logind and hotkeys go dead | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
 | Device drops off USB at handoff, no logs, writing a rootfs over adb | [device-debugging.md](references/device-debugging.md) |
 | Booted but unreachable, no default route, declarative config ignored, ssh/mDNS, giving a device internet through the build host | [stage-2-access.md](references/stage-2-access.md) |
 | Stock artifacts, AVB, partition maps, recovery trees, rooting | skill `android-firmware-lab` |
@@ -86,6 +86,9 @@ The rung is the effect, never the unit.
   served the write.
 - Deploy whole images. Hand-swapping individual components of a patched systemd
   between builds freezes PID 1 with no log and costs a reflash.
+- Never turn a panel off through `/sys/class/graphics/fb0/blank`. On mtkfb the
+  write deadlocks the driver and every framebuffer refresher with it, and the
+  only way out is a power cycle. Drive the backlight LED instead.
 
 ## Verify commands
 
