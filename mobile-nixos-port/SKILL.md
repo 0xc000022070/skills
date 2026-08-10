@@ -1,11 +1,11 @@
 ---
 name: mobile-nixos-port
-description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, keeping a vendor and a mainline kernel tree buildable for the same device, writing the single-process on-panel dashboard that a few hardware keys drive, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, reaching a device that boots clean yet is unreachable or ignoring its own network config, giving a driverless device internet through the build host, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI, SoC download modes and root solutions, use android-firmware-lab.
+description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, keeping a vendor and a mainline kernel tree buildable for the same device, writing the single-process on-panel dashboard that a few hardware keys drive, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, reaching a device that boots clean yet is unreachable or ignoring its own network config, giving a driverless device internet through the build host, starting a vendor driver that is built in but never registers itself, provisioning proprietary firmware blobs, or keeping a ported device running unattended — self-rolling-back deploys, journal and store growth, sizing services for a phone, and remote management over a VPN. For stock Android artifacts, AVB, recovery trees, GKI/KMI, SoC download modes and root solutions, use android-firmware-lab.
 allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*) Bash(sha256sum:*) Bash(file:*)
 disable-model-invocation: false
 metadata:
   author: Luis Quiñones
-  version: "1.2.0"
+  version: "1.3.0"
   category: nix
 ---
 
@@ -57,6 +57,8 @@ The rung is the effect, never the unit.
 | systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently, a udev that tags nothing so logind and hotkeys go dead | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
 | Device drops off USB at handoff, no logs, writing a rootfs over adb | [device-debugging.md](references/device-debugging.md) |
 | Booted but unreachable, no default route, declarative config ignored, ssh/mDNS, giving a device internet through the build host | [stage-2-access.md](references/stage-2-access.md) |
+| A driver that is built in but never starts, a vendor loader daemon, proprietary firmware blobs, register dumps on a gated block | [vendor-drivers.md](references/vendor-drivers.md) |
+| Leaving it running: deploys that can undo themselves, journal and store growth, sizing services, wifi credentials, VPN for remote management | [production.md](references/production.md) |
 | Stock artifacts, AVB, partition maps, recovery trees, rooting | skill `android-firmware-lab` |
 
 ## Hard rules
@@ -88,6 +90,13 @@ The rung is the effect, never the unit.
   `-s` and an explicit `authorized_keys`.
 - A build is not a boot. A boot is not an installation. One hardware revision
   proves nothing about another. A unit that ran is not an effect that happened.
+- Any switch that can break the only transport must be able to undo itself. Arm
+  a rollback timer before the switch and confirm it from the host only after the
+  device answers again — a device that is gone confirms nothing and is rolled
+  back by the generation it just replaced.
+- Establish the device's idle baseline before reading any metric as a fault. A
+  vendor kernel parks dozens of threads in D state, so a load average in the
+  twenties can be a healthy device doing nothing.
 - Measure the effect, not the abstraction that was supposed to produce it. `ip
   route` over `networking.defaultGateway`, a resolved name over an active
   `avahi-daemon`, a re-read of the block device over the page cache that just
