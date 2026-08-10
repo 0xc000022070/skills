@@ -1,11 +1,11 @@
 ---
 name: mobile-nixos-port
-description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, reaching a device that boots clean yet is unreachable or ignoring its own network config, giving a driverless device internet through the build host, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI and root solutions, use android-firmware-lab.
+description: Port Mobile NixOS to an Android phone or tablet — package a downstream vendor kernel in Nix, build an Android boot image the bootloader accepts, bring up stage-1 (framebuffer console, backlight, USB gadget, SSH), and diagnose an initramfs that boots but shows nothing. Use when adding a device to a mobile-config-style ports repo, writing or debugging stage-1 mruby tasks, wiring mobile.* options, fighting fbdev/mtkfb or a SoC with no KMS driver, keeping a vendor and a mainline kernel tree buildable for the same device, writing the single-process on-panel dashboard that a few hardware keys drive, running modern systemd on a pre-5.x kernel, chasing a device that switch_roots and then goes silent with no logs, reaching a device that boots clean yet is unreachable or ignoring its own network config, giving a driverless device internet through the build host, or deciding what evidence actually proves a boot. For stock Android artifacts, AVB, recovery trees, GKI/KMI, SoC download modes and root solutions, use android-firmware-lab.
 allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*) Bash(sha256sum:*) Bash(file:*)
 disable-model-invocation: false
 metadata:
   author: Luis Quiñones
-  version: "1.1.0"
+  version: "1.2.0"
   category: nix
 ---
 
@@ -51,9 +51,9 @@ The rung is the effect, never the unit.
 
 | Task | Read |
 |---|---|
-| Flake, device registry, kernel derivation, boot image, patch discipline | [nix-packaging.md](references/nix-packaging.md) |
+| Flake, device registry, kernel derivation, keeping a vendor and a mainline tree buildable, boot image, patch discipline | [nix-packaging.md](references/nix-packaging.md) |
 | Write or debug a stage-1 task, USB gadget, networking, SSH, logs | [stage-1.md](references/stage-1.md) |
-| Black panel, white band, lit-but-blank, no KMS, fbcon, backlight, blanking the panel, keeping printk off a console TUI | [display-bringup.md](references/display-bringup.md) |
+| Black panel, white band, lit-but-blank, no KMS, fbcon, backlight, blanking the panel, keeping printk off a console TUI, writing the dashboard that repaints it | [display-bringup.md](references/display-bringup.md) |
 | systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently, a udev that tags nothing so logind and hotkeys go dead | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
 | Device drops off USB at handoff, no logs, writing a rootfs over adb | [device-debugging.md](references/device-debugging.md) |
 | Booted but unreachable, no default route, declarative config ignored, ssh/mDNS, giving a device internet through the build host | [stage-2-access.md](references/stage-2-access.md) |
@@ -64,6 +64,14 @@ The rung is the effect, never the unit.
 - Flash to `recovery`, not `boot`, for the whole of stage-1 bring-up. A working
   Android `boot` is the way back from every experiment. Never write `super` or
   `userdata` before stage-1 is repeatable.
+- A raw kernel in `recovery` is not itself a safety net. It is one while the
+  kernel reaches stage-1, because stage-1 gives back a channel; a kernel from an
+  untested lineage that panics before userspace leaves no ADB, no gadget, no
+  console and no logs, and the only way back is the SoC download mode. Before
+  flashing a lineage that has never run on the hardware, put a real recovery
+  there first and confirm it boots — a recovery with its own ADB can rewrite the
+  partition from the device. Keep a hash-verified copy of what the partition
+  held, taken by reading the partition back, not reconstructed from the build.
 - One variable per boot attempt. A boot that changed three things and failed
   produces no information.
 - Pin the kernel by revision and hash, never by branch. Vendor forks rebase.

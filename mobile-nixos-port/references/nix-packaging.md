@@ -6,6 +6,7 @@
 - Evaluate the device twice
 - Patching the Mobile NixOS tree
 - The kernel derivation
+- Selecting a kernel lineage
 - What the structured config layer overrides
 - Boot image geometry
 - Patch discipline
@@ -147,11 +148,71 @@ Argument notes:
   of the makefiles.
 - **`makeFlags = [ "KCFLAGS=-fcommon" ]`.** gcc10+ defaults to `-fno-common`;
   pre-2020 trees rely on tentative definitions being merged.
+- **`modDirVersion`.** The builder compares the declared version against
+  `include/config/kernel.release` *after* the whole kernel has compiled.
+  Mainline `x.y` tarballs drop `SUBLEVEL` from the filename but not from the
+  Makefile, so `version = "6.18"` produces `6.18.0` and fails that check at the
+  end of a full build. Declare `modDirVersion` whenever the tarball name and the
+  release string can disagree; it is also the `/lib/modules/<x>` directory name.
 - **`nativeBuildInputs = [ python3 ]`.** MediaTek trees run
   `tools/dct/DrvGen.py` from `scripts/drvgen/drvgen.mk` to *generate* a `.dtsi`,
   so python is a device-tree dependency, not a helper. The builder's
   `patchShebangs` silently leaves a shebang alone when the interpreter is not on
   PATH, so omitting it fails late and confusingly.
+
+## Selecting a kernel lineage
+
+Keeping a vendor tree and a mainline tree buildable side by side is worth the
+cost — one of them is what boots, the other is the upgrade path — but the
+selector cannot live wherever it reads best.
+
+Mobile NixOS runs a config validator that aborts evaluation when a
+`structuredConfig` assertion names a symbol the source tree does not define, and
+`MACH_<soc>` and `ARCH_<vendor>` belong to mutually exclusive Kconfig worlds. So
+the module that *contributes* those assertions is the one that has to know which
+lineage it is talking about.
+
+**Declare the selector at the layer that asserts the Kconfig.** When a SoC
+module contributes `mobile.kernel.structuredConfig`, that layer is the SoC
+module, not the device:
+
+```nix
+options.mobile.hardware.socs.<soc> = {
+  enable = mkOption { /* ... */ };
+  kernelTree = mkOption {
+    type = types.enum [ "vendor" "mainline" ];
+    default = "vendor";
+  };
+};
+
+config = mkIf cfg.<soc>.enable {
+  mobile.kernel.structuredConfig = [
+    (helpers: with helpers;
+      if cfg.<soc>.kernelTree == "mainline"
+      then { ARCH_<vendor> = yes; }
+      else { ARCH_<vendor> = no; MACH_<soc> = yes; /* vendor-only symbols */ })
+  ];
+};
+```
+
+A device-level option cannot gate them. The SoC module is evaluated for every
+device that enables the SoC and has no business reading a device attribute, so
+the assertions would fire before any device value could suppress them. The same
+argument covers quirks: a framebuffer refresher that exists only for a vendor
+fbdev driver is gated on this selector, not on the device.
+
+Expose the alternate lineage as its own flake output rather than a flag the
+default build can trip over:
+
+```nix
+mainline = evalFor system device {
+  mobile.hardware.socs.<soc>.kernelTree = "mainline";
+};
+```
+
+This is the general form of the split rule in the skill: kernel-version quirks
+follow the kernel version, SoC quirks follow the SoC. An option exists at the
+layer whose assertions it controls.
 
 ## What the structured config layer overrides
 

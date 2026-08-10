@@ -11,6 +11,7 @@
 - The backlight is a DSI command, and it lies
 - Turning the panel off without deadlocking it
 - The console is not yours until printk stops writing to it
+- Writing the thing that repaints it
 - MediaTek display debugfs
 
 ## Triage ladder
@@ -245,6 +246,47 @@ A poller on this kind of tree also generates its own noise: reading
 line per read. The printk prefix names the process that caused it —
 `(5)[5478:panel][fgauge_read_current]` — which is how you separate a chatty
 driver from a chatty reader of your own making.
+
+## Writing the thing that repaints it
+
+A dashboard on a phone panel is a full-screen TUI whose only input is the two or
+three hardware keys the keypad driver reports. Two properties decide whether it
+is usable, and neither one is about drawing.
+
+**It has to be a single process.** A shell implementation forks per reading —
+`nproc`, `stty`, `df`, `ss`, `ip`, `ps`, `who`, `systemctl`, a VPN client — and
+on eight in-order A53s thirty forks per repaint measured 420 ms. The damage is
+not the frame latency. It is that the key poll degenerates into 50 ms slices
+between forks, so presses land late or are dropped entirely, and the device
+reads as hung when it is merely busy forking. Read procfs, sysfs, sd-bus and
+sd-journal in-process, and drive the loop from `epoll` over the input
+descriptors plus a `timerfd` for the refresh.
+
+sd-bus and sd-journal are the ones that pay: they replace forking `systemctl`
+and `journalctl` on every repaint, which is usually the largest single item.
+
+**Take input from the event device directly.** On these kernels udev tags
+nothing, so logind holds no input descriptors and every framework that expects
+it to is silently dead — see
+[old-kernel-userspace.md](old-kernel-userspace.md). Read packed `input_event`
+structs from `/dev/input/eventN` and decode the key codes yourself.
+
+Both decisions also buy testability, provided the seams are placed on purpose:
+
+- route every filesystem read through one prefix function, so a fixture tree
+  stands in for `/proc` and `/sys`;
+- decode keys from *any* descriptor rather than from a device path, so a pipe
+  can replay a press sequence.
+
+With those two seams the frame renderer and the key state machine both run on
+the build host with no device attached. That is worth more here than in ordinary
+software: the alternative to a host test is a reflash, a boot, and a physical
+power cycle when it wedges.
+
+Compiling such a helper needs no pkg-config. `runCommandCC` with the library in
+`buildInputs` already puts the include and library paths into the `$CC` wrapper,
+and plain `pkg-config` does not answer under a target prefix when
+cross-compiling.
 
 ## MediaTek display debugfs
 
