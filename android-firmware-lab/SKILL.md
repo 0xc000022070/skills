@@ -1,10 +1,10 @@
 ---
 name: android-firmware-lab
-description: Inspect, identify, build, unpack, patch-plan, temporary-boot, debug, and recover Android firmware, kernels, boot images, root solutions, ROMs, recoveries, and device trees. Use for adb/fastboot inventory, boot or init_boot analysis, GKI/KMI compatibility, AVB/vbmeta and A/B reasoning, Magisk/KernelSU/APatch work, kernel or AOSP builds, bootloop diagnosis, TWRP or legacy recovery bring-up, dead recovery touch or USB, custom ROM bring-up, and device-specific firmware planning.
+description: Inspect, identify, build, unpack, patch-plan, temporary-boot, debug, and recover Android firmware, kernels, boot images, root solutions, ROMs, recoveries, and device trees. Use for adb/fastboot inventory, boot or init_boot analysis, GKI/KMI compatibility, AVB/vbmeta and A/B reasoning, Magisk/KernelSU/APatch work, kernel or AOSP builds, bootloop diagnosis, TWRP or legacy recovery bring-up, dead recovery touch or USB, custom ROM bring-up, device-specific firmware planning, and recovering a device that reaches no bootloader — SoC download modes, reading a host USB enumeration log, and a device left latched by a crashed flashing tool.
 allowed-tools: Read Grep Glob Bash(adb:*) Bash(file:*) Bash(sha256sum:*) Bash(python3:*)
 metadata:
   author: Luis Quiñones
-  version: "1.2.0"
+  version: "1.3.0"
   category: android-firmware
 ---
 
@@ -31,6 +31,7 @@ Stop compatibility analysis when identity is ambiguous. A shared marketing name 
 | Inspect `*.img`, OTA, `payload.bin`, `super`, DTB/DTBO, AVB | [images-and-avb.md](references/images-and-avb.md) |
 | Plan temporary boot, patching, rooting, or flashing | [workflows.md](references/workflows.md), [recovery.md](references/recovery.md) |
 | Diagnose bootloop, kernel panic, init failure, SELinux denial | [debugging.md](references/debugging.md) |
+| Device reaches no bootloader: download modes, USB log forensics, latched flashing agent | [debugging.md](references/debugging.md), [boot-chain.md](references/boot-chain.md) |
 | Build kernel, GKI module, AOSP, recovery, or ROM | [building.md](references/building.md), [compatibility.md](references/compatibility.md) |
 | Bring up TWRP/custom recovery, legacy MediaTek, touch, USB, or no-ADB diagnostics | [recovery-bringup.md](references/recovery-bringup.md), [debugging.md](references/debugging.md) |
 | Choose Magisk, KernelSU, APatch, LSPosed, or tooling | [ecosystem.md](references/ecosystem.md) |

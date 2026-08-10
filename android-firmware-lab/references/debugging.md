@@ -3,6 +3,9 @@
 ## Contents
 
 - Evidence sources
+- USB enumeration forensics
+- A crashed download agent latches the SoC
+- Brick taxonomy
 - Failure-stage matrix
 - Kernel and init diagnosis
 - Display output diagnosis
@@ -27,11 +30,104 @@ Capture host timestamps and exact candidate hash.
 
 When recovery boots but ADB never enumerates, read [recovery-bringup.md](recovery-bringup.md). Instrument persistent capture before the next boot with `scripts/collect-recovery-diagnostics.sh`; a requirement to collect logs is not actionable without an evidence transport.
 
+## USB enumeration forensics
+
+When a device offers no ADB, no fastboot and no stable download mode, the host's
+USB log is the only instrument left. Read it as timing, not as error strings.
+
+```
+usb 3-1: new high-speed USB device number 54 using xhci_hcd
+usb 3-1: device descriptor read/64, error -71
+usb 3-1: Device not responding to setup address.
+usb 3-1: device not accepting address 57, error -71
+```
+
+Two independent quantities live in that log and only one of them is about the
+device:
+
+- **the burst length** is the host's fixed retry ladder in `hub_port_init` — two
+  descriptor reads per address, two addresses, then give up. It measures a
+  constant ~2.3 s against any broken device and carries no information at all.
+- **the interval between `new ... USB device` lines** is the device re-asserting
+  its D+ pull-up on its own. That is the only device-side signal in the log.
+
+Track the interval across attempts rather than reading any single burst:
+
+| Interval trend | Reading |
+|---|---|
+| Growing monotonically | draining and never charging; the power path is not running |
+| Shrinking | accumulating charge; the supply is reaching it |
+| Fixed and short, matching the loop period | bootloop; USB init is reached each pass |
+| No intervals, continuous failure while attached | link layer — cable, connector, host port |
+
+A device that announces itself and then fails **every** control transfer has a
+live pull-up and dead signalling. That is a contact fault *or* a controller left
+half-initialized by crashed code; the log cannot separate them. Change the
+cheapest variable and re-measure the interval.
+
+Do not conclude "bad cable" or "dirty connector" when the same cable and port
+enumerated cleanly earlier in the same session. A physical link does not degrade
+on its own between two attempts minutes apart — check timestamps before
+replacing hardware. What changed is far more likely the device's state.
+
+Test host ports on **different controllers**, not different sockets. Several
+sockets on one root hub are one test repeated. `lsusb -t` and
+`lspci | grep -i usb` show which is which.
+
+## A crashed download agent latches the SoC
+
+A host flashing tool that uploads its agent and then fails does not leave the
+device where it found it:
+
+```
+Sending emi data ...
+DRAM setup failed: ...
+Failed to upload da..
+```
+
+The agent already took the chip. The symptoms follow from that and are
+diagnostic:
+
+- black panel, no response to any key — mask-ROM and agent code do not read the
+  keypad, so every long-press reset that relies on software is inert;
+- the charging path never runs, because it lives in the primary loader and in
+  the kernel and neither is reached. A wall charger changes nothing, and the
+  device stays cold because it never leaves hardware pre-charge;
+- therefore the battery drains monotonically, which is exactly the growing
+  interval above.
+
+Only removing power clears it. With no removable battery that means opening the
+case and unplugging the battery connector. Nothing on the far side is listening,
+so no software route exists.
+
+Charge from a dumb 5 V source only *after* the latch is cleared. A device that
+has not finished enumerating is capped at 100 mA by specification, so a host
+port can never charge it out of a failing handshake — that trap is
+self-reinforcing.
+
+## Brick taxonomy
+
+Classify by the lowest stage still executing, and say which one you mean rather
+than saying "bricked":
+
+| Observation | Lowest live stage | Route back |
+|---|---|---|
+| No electrical activity, ever | none | board-level repair |
+| Periodic USB pull-up, all transfers fail | mask ROM, or an agent that crashed | cut power at the battery, then download mode |
+| Stable download-mode enumeration | mask ROM or primary loader | host flashing tool |
+| Bootloader or fastboot reachable | primary loader chain | reflash the failing partition |
+| Logo then reboot | kernel load succeeded | reflash the kernel image |
+
+A mask ROM is fixed at fabrication and no flash operation can erase it, so only
+the first row is unrecoverable by firmware means. Periodic USB activity is
+positive evidence that the silicon executes code.
+
 ## Failure-stage matrix
 
 | Observation | Likely domain | First checks |
 |---|---|---|
-| No enumeration, no bootloader | Boot ROM/PBL, power, storage, hardware | cable/power, SoC recovery mode, OEM recovery tooling |
+| No enumeration, no bootloader | Boot ROM/PBL, power, storage, hardware | host USB log interval trend, cable/power, SoC download mode, OEM recovery tooling |
+| Enumerates repeatedly, every transfer fails | link layer, or a latched download agent | interval trend, controller change, power cut at the battery |
 | Bootloader rejects image | lock/signature/rollback/format/size | exact error, product, unlock, header, AVB, anti-version |
 | Immediate return to bootloader | no valid bootable slot/image | slot metadata, image load, AVB, partition target |
 | Static logo then watchdog reboot | kernel/DT/vendor_boot/modules | ramoops, kernel release, KMI, DT, ramdisk compression |

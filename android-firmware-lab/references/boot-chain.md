@@ -3,6 +3,7 @@
 ## Contents
 
 - Stage model
+- SoC download modes
 - Boot image generations
 - Partition roles
 - GKI split
@@ -18,6 +19,36 @@
 6. Zygote/system_server bring up the Java framework; boot animation ends after framework readiness.
 
 Bootloader does not execute Android init. Kernel starts init.
+
+## SoC download modes
+
+Stage 1 usually exposes two distinct recovery entry points, and they are not
+interchangeable. On MediaTek they are the Boot ROM and the preloader; other
+vendors have analogues with different names and different capabilities.
+
+| Entry | Runs from | DRAM | Reachable when |
+|---|---|---|---|
+| Mask ROM | ROM fixed at fabrication | not initialized | always; no flash operation can erase it |
+| Primary loader | dedicated boot storage | initialized by this stage | its own image is intact |
+
+Host flashing tools upload a download agent that has to buffer partition data
+somewhere, and that somewhere is DRAM. On MediaTek the DRAM timings live in the
+preloader, not in the SoC, so entering through the Boot ROM fails at agent
+upload unless the tool is handed the device's own preloader image.
+
+The practical consequence is counter-intuitive: **the key combination that
+forces mask-ROM entry is the wrong one for ordinary recovery.** Prefer the
+primary-loader window. Start the host tool first and attach the cable with no
+keys held, because the window is often under a second.
+
+Reach for mask-ROM entry only when the primary loader itself is unbootable, and
+supply the matching loader image with it. A loader from another variant carries
+another board's memory parameters and executes before everything else on the
+chip.
+
+A device that bootloops is not only a failure — each pass runs the primary
+loader to completion before dying, which is a repeated, catchable download-mode
+window that needs no external loader image.
 
 ## Boot image generations
 
