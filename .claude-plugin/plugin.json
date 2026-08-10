@@ -1,6 +1,6 @@
 {
   "name": "skills",
-  "description": "Agent skills for browser internals, Nix, React Native, and Android firmware engineering.",
+  "description": "Agent skills for browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
   "version": "1.0.0",
   "author": {
     "name": "Luis Qui\u00f1ones",
@@ -13,6 +13,7 @@
     "./jetson-nixos",
     "./mobile-nixos-port",
     "./react-native-optimistic-ui",
+    "./voice-orchestrator",
     "./zen-browser-internals",
     "./zen-browser-flake-dev"
   ]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Voice Orchestrator"
+  short_description: "Control and summarize independent Herdr agents"
+  default_prompt: "Use $voice-orchestrator to inspect my Herdr agents and coordinate the requested work."

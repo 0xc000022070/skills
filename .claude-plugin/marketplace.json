@@ -4,16 +4,19 @@
     "name": "Luis Qui\u00f1ones",
     "email": "luis@quinones.pro"
   },
-  "description": "Agent skills for browser internals, Nix, React Native, and Android firmware engineering.",
+  "description": "Agent skills for browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
   "plugins": [
     {
       "name": "skills",
       "source": "./",
-      "description": "Agent skills for browser internals, Nix, React Native, and Android firmware engineering.",
+      "description": "Agent skills for browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
       "category": "development",
       "keywords": [
         "skills",
         "claude-code",
+        "voice",
+        "herdr",
+        "agent-orchestration",
         "zen-browser",
         "firefox",
         "nix",
