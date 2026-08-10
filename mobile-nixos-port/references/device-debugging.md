@@ -7,6 +7,7 @@
 - A log ring on unused disk
 - Writing a rootfs over adb
 - Retiring adb for ssh
+- Vendor baselines that look like faults
 - Host tooling belongs in the flake
 
 ## The problem
@@ -166,6 +167,29 @@ verify.
 Reach for ssh first whenever adb goes quiet, and use the port to tell which
 stage answered before concluding the device is dead
 ([stage-2-access.md](stage-2-access.md)).
+
+## Vendor baselines that look like faults
+
+Establish what idle looks like on the device before treating any reading as
+evidence. A vendor kernel parks threads in states a mainline system never would,
+and the usual health metrics report them as trouble.
+
+**Load average.** One port idles at `load average: 24.21, 24.03, 20.54` with
+`top` showing 94% idle. Both numbers are correct: Linux counts uninterruptible
+sleep in the load average, and this kernel parks 23 threads in D state
+permanently — the sensor hub, five fuel-gauge and charger threads, four display
+threads, a DVFS IPI waiter, one watchdog kicker per CPU, hang detection, and the
+port's own framebuffer refresher. None is stuck on I/O and none is spinning.
+
+So a high load average on such a device means nothing on its own. Write the
+baseline count down. Only a figure meaningfully above it, or a D-state entry not
+on the list, carries information — check `%Cpu(s)` and the D-state set before
+concluding anything about a hang, an I/O stall or a restart loop.
+
+**Do not sweep `/dev`.** Opening and closing every node to see what answers
+reboots this class of device, and a skip list does not save you because the
+node that does it is not knowable in advance. Read single known nodes instead.
+The cost of getting this wrong is a physical power cycle.
 
 ## Host tooling belongs in the flake
 

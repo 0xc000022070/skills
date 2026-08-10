@@ -229,6 +229,40 @@ Normalize the vendor defconfig with an out-of-tree `make olddefconfig` against
 the pinned source and check in the normalized file, so the repo matches what is
 actually built. It still is not the config the kernel runs with.
 
+Hand-editing the checked-in config is never enough: `oldconfig` expands
+`select`/`default y` closures, and the file must match that expansion or the
+build fails. There is a cheap way to get the exact delta without compiling
+anything — **build `validatedConfig` and read the log of the failure**:
+
+```sh
+nix build --impure --no-link \
+  '.#nixosConfigurations.<dev>.config.mobile.boot.stage-1.kernel.package.validatedConfig'
+nix log <the .drv it prints>
+```
+
+It runs plain `make oldconfig`, diffs before against after, and aborts with the
+delta. The `+` lines are exactly what oldconfig would add. Apply them by hand,
+rerun, repeat until the log no longer says `does not match once passed through`.
+Its `buildPhase` is `:`, so this costs seconds.
+
+Two traps in reading that output:
+
+- **`validatedConfig` always fails afterwards**, with dozens of
+  `ERROR: CONFIG_x not set to ...` from the structured-config validator, because
+  that mode deliberately skips the structured merge. Pre-existing, not a signal.
+  Only the oldconfig line matters.
+- **Do not build the `normalizedConfig` passthru and copy it back.** It sets
+  `updateConfigFromStructuredConfig = true`, so its output has the whole
+  structured layer folded in. The checked-in file is the *plain* olddefconfig
+  form and has to stay that way.
+
+Prune the delta before accepting it, because `select` bypasses `depends on`
+silently: one `default y` network driver that selects `PHYLIB` drags an MDIO bus
+and two dozen MII PHY drivers into a phone kernel that has no MDIO bus.
+
+Verify against the artifact rather than the file once it builds:
+`<kernel-src>/scripts/extract-ikconfig <out>/Image.gz`.
+
 ## Boot image geometry
 
 Derive geometry from the packager that already worked for the device (Droidian's

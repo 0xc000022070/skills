@@ -11,6 +11,8 @@
 - The backlight is a DSI command, and it lies
 - Turning the panel off without deadlocking it
 - The console is not yours until printk stops writing to it
+- Reading the screen without looking at it
+- The blank timer freezes the framebuffer and hides it well
 - Writing the thing that repaints it
 - MediaTek display debugfs
 
@@ -247,6 +249,80 @@ line per read. The printk prefix names the process that caused it —
 `(5)[5478:panel][fgauge_read_current]` — which is how you separate a chatty
 driver from a chatty reader of your own making.
 
+## Reading the screen without looking at it
+
+`/dev/vcs<N>` returns that VT's character buffer verbatim, so a TUI's current
+screen can be read over ssh with the phone face down on the desk. Geometry is
+the first four bytes of `/dev/vcsa<N>` — rows, cols, x, y:
+
+```sh
+head -c4 /dev/vcsa1 | od -An -tu1     # rows cols x y
+head -c $((rows * cols)) /dev/vcs1
+```
+
+Use it before any cheaper probe, because the cheaper probes alias. Injecting a
+key and watching the backlight cannot separate "dashboard, power toggled the
+screen" from "menu, backlight entry selected" — both write the same sysfs value.
+Watching for a child process is worse: a `journalctl` capture behind a line cap
+can live ~139 ms, so a 300 ms poll reports "no log view" for a log view that
+opened and closed.
+
+Screen content is a *level*, not an edge, so it survives any sampling interval.
+That is the whole reason to prefer it.
+
+`vcs` proves the character buffer and never the pixels. It stays live while the
+panel shows nothing — see the next section, where that is the diagnosis.
+
+Run the remote side under `bash -s` if the login shell is zsh: zsh does not
+word-split unquoted `$var`, which silently breaks `cut`-based parsing of `od`
+output and produces empty geometry rather than an error.
+
+## The blank timer freezes the framebuffer and hides it well
+
+`/sys/module/kernel/parameters/consoleblank` defaults to **600**. After ten idle
+minutes the VT layer soft-blanks and fbcon stops writing to fb0 entirely.
+Nothing on a device like this unblanks it: `do_unblank_screen()` is reached from
+the vt keyboard handler or a `KDSETMODE` transition and **never from console
+output**, so a dashboard repainting every few seconds has no effect at all.
+
+It does not look like blanking. Because `vesa_blank_mode` is 0 it is a *soft*
+blank, `fb_blank` is never called, and every observable reports healthy:
+
+| Probe | Reads |
+|---|---|
+| backlight | lit, at whatever level the panel last set |
+| `/dev/vcs1` | updating, live clock and all |
+| `fb0/state` | 0 (RUNNING) |
+| `vtcon1/bind` | 1 |
+| `kbdinfo getmode` | text |
+| `/dev/fb0` | **unchanged, byte for byte** |
+
+**The decisive test is the last row.** Dump `/dev/fb0` twice, seconds apart, and
+compare hashes. Frozen bytes while `vcs1` advances means blanking, full stop. Do
+that before theorising — skipping it produced two confident wrong root causes on
+one port, a stale pan offset and a stranded `ops->graphics`, before the two-dump
+comparison settled it in one command.
+
+Recovering a console already blanked, over ssh, by cycling the VT mode:
+
+```sh
+perl -e 'open(my $t,"+<","/dev/tty1") or die;
+         ioctl($t,0x4B3A,1); select(undef,undef,undef,0.3);
+         ioctl($t,0x4B3A,0);'      # KDSETMODE: KD_GRAPHICS -> KD_TEXT
+```
+
+Disarming it is its own trap. `setterm --blank 0` **silently does nothing** when
+`TERM` is unset or not `linux`: it resolves the terminal type before emitting
+anything, exits 0, and leaves the parameter at 600. Write the escapes directly
+and read the parameter back to verify:
+
+```sh
+printf '\033[9;0]\033[13]' > /dev/tty1    # interval 0, then poke
+```
+
+Fix it permanently with `consoleblank=0` in `boot.kernelParams` plus a unit that
+re-asserts it, remembering that the cmdline only changes on a reflash.
+
 ## Writing the thing that repaints it
 
 A dashboard on a phone panel is a full-screen TUI whose only input is the two or
@@ -287,6 +363,38 @@ Compiling such a helper needs no pkg-config. `runCommandCC` with the library in
 `buildInputs` already puts the include and library paths into the `$CC` wrapper,
 and plain `pkg-config` does not answer under a target prefix when
 cross-compiling.
+
+**Do not attach `restartTriggers` to `systemd.services."getty@tty1"`.** The
+dashboard runs as a child of tty1's login shell and belongs to no unit, so a
+deploy strands the previous generation's binary — and the obvious fix is the one
+that takes the console down for good.
+
+On these images `/etc/systemd/system/getty@.service` is systemd's *vendor
+example* unit, whose `ExecStart` is `-/usr/bin/agetty …`, a path that does not
+exist on NixOS. The real command arrives from the template drop-in
+`getty@.service.d/overrides.conf`, which resets `ExecStart=` and points at the
+NixOS wrapper. Defining the instance displaces that template drop-in:
+`DropInPaths` ends up holding only the new instance file, `ExecStart` falls back
+to `/usr/bin/agetty`, the next start exits **203**, `Restart=always` burns
+through the start limit, and tty1 is left at `Result=start-limit-hit` with no
+login at all. `systemctl start` does not recover it; a redeploy does.
+
+Retire a stale dashboard by hand instead, and expect the stop to be slow:
+
+```sh
+systemctl restart getty@tty1 --no-block   # the stop waits out TimeoutStopSec
+```
+
+The restart sits in `deactivating (final-sigterm)` for the full stop timeout
+(~90 s) waiting on the login session, so any ssh invocation wrapped in a 60 s
+timeout returns 124 with the result unknown. Use `--no-block` and poll.
+
+If tty1 is already dead, a session can be re-established without a working
+getty:
+
+```sh
+setsid sh -c 'exec /run/current-system/sw/bin/panel < /dev/tty1 > /dev/tty1 2>&1' &
+```
 
 ## MediaTek display debugfs
 
