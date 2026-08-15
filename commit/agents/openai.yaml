@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit"
+  short_description: "Create clean atomic Git commits"
+  default_prompt: "Use $commit to inspect current changes and create atomic commits."

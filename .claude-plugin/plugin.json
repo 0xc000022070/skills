@@ -1,6 +1,6 @@
 {
   "name": "skills",
-  "description": "Agent skills for browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
+  "description": "Agent skills for Git workflows, browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
   "version": "1.0.0",
   "author": {
     "name": "Luis Qui\u00f1ones",
@@ -10,6 +10,7 @@
   "repository": "https://github.com/0xc000022070/skills",
   "skills": [
     "./android-firmware-lab",
+    "./commit",
     "./jetson-nixos",
     "./mobile-nixos-port",
     "./react-native-optimistic-ui",
