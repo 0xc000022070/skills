@@ -1,0 +1,4 @@
+interface:
+  display_name: "NixOS on AWS with OpenTofu"
+  short_description: "Maintain single-host NixOS machines on EC2: tofu roots, agenix secrets, aarch64 deploys, ingress"
+  default_prompt: "Use $nixos-aws-tofu to make this infrastructure change, one falsifiable rung at a time."

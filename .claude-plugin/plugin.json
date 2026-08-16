@@ -1,6 +1,6 @@
 {
   "name": "skills",
-  "description": "Agent skills for Git workflows, browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
+  "description": "Agent skills for Git workflows, browser internals, Nix, cloud infrastructure, mobile development, agent orchestration, and Android firmware engineering.",
   "version": "1.0.0",
   "author": {
     "name": "Luis Qui\u00f1ones",
@@ -13,6 +13,7 @@
     "./commit",
     "./jetson-nixos",
     "./mobile-nixos-port",
+    "./nixos-aws-tofu",
     "./react-native-optimistic-ui",
     "./voice-orchestrator",
     "./zen-browser-internals",

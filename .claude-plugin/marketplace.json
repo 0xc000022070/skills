@@ -4,12 +4,12 @@
     "name": "Luis Qui\u00f1ones",
     "email": "luis@quinones.pro"
   },
-  "description": "Agent skills for Git workflows, browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
+  "description": "Agent skills for Git workflows, browser internals, Nix, cloud infrastructure, mobile development, agent orchestration, and Android firmware engineering.",
   "plugins": [
     {
       "name": "skills",
       "source": "./",
-      "description": "Agent skills for Git workflows, browser internals, Nix, mobile development, agent orchestration, and Android firmware engineering.",
+      "description": "Agent skills for Git workflows, browser internals, Nix, cloud infrastructure, mobile development, agent orchestration, and Android firmware engineering.",
       "category": "development",
       "keywords": [
         "skills",
@@ -51,7 +51,19 @@
         "cross-compilation",
         "uefi",
         "edk2",
-        "disko"
+        "disko",
+        "opentofu",
+        "terraform",
+        "aws",
+        "ec2",
+        "agenix",
+        "age",
+        "secrets",
+        "infrastructure-as-code",
+        "postgresql",
+        "pgbouncer",
+        "redis",
+        "graviton"
       ]
     }
   ]
