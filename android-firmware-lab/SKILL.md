@@ -4,7 +4,7 @@ description: Inspect, identify, build, unpack, patch-plan, temporary-boot, debug
 allowed-tools: Read Grep Glob Bash(adb:*) Bash(file:*) Bash(sha256sum:*) Bash(python3:*)
 metadata:
   author: Luis Quiñones
-  version: "1.3.0"
+  version: "1.4.0"
   category: android-firmware
 ---
 
@@ -29,7 +29,7 @@ Stop compatibility analysis when identity is ambiguous. A shared marketing name 
 |---|---|
 | Understand startup or choose boot artifact | [boot-chain.md](references/boot-chain.md), [compatibility.md](references/compatibility.md) |
 | Inspect `*.img`, OTA, `payload.bin`, `super`, DTB/DTBO, AVB | [images-and-avb.md](references/images-and-avb.md) |
-| Plan temporary boot, patching, rooting, or flashing | [workflows.md](references/workflows.md), [recovery.md](references/recovery.md) |
+| Plan temporary boot, patching, rooting, flashing, or alternative-OS boot selection | [workflows.md](references/workflows.md), [recovery.md](references/recovery.md), [boot-chain.md](references/boot-chain.md) |
 | Diagnose bootloop, kernel panic, init failure, SELinux denial | [debugging.md](references/debugging.md) |
 | Device reaches no bootloader: download modes, USB log forensics, latched flashing agent | [debugging.md](references/debugging.md), [boot-chain.md](references/boot-chain.md) |
 | Build kernel, GKI module, AOSP, recovery, or ROM | [building.md](references/building.md), [compatibility.md](references/compatibility.md) |

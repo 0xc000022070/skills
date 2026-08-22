@@ -3,6 +3,7 @@
 ## Contents
 
 - The task graph
+- Recovery-resident boot selection
 - The mruby environment
 - Observation channels
 - USB gadget
@@ -45,6 +46,45 @@ that needs `/dev/fb0` must depend on `Tasks::Graphics::FBDev`.
 An unresolved dependency does not error — it hangs. `TASKS_HANG_TIMEOUT` with a
 list of unresolved tasks is the diagnostic; read the list, it names the missing
 resource directly.
+
+## Recovery-resident boot selection
+
+A menu in stage-1 is not GRUB. Boot ROM and the device bootloader have already
+selected a partition, loaded its kernel, ramdisk and device tree, and entered
+Linux. The menu can choose later policy. It cannot retroactively ask the
+bootloader for a different kernel.
+
+Classify each proposed entry by the mechanism it needs:
+
+| Entry | What must be proven |
+|---|---|
+| another root or NixOS generation under the running kernel | stage-1 can locate the closure, select its init and recover when it is incomplete |
+| Android or another boot partition | the exact boot-control field, whether the command is persistent or one-shot, and how the menu returns on the following boot |
+| fastboot or recovery | the vendor command or boot-control value, read back before reset |
+| another kernel | supported `kexec`, or a verified flash-and-reboot workflow with an independent restore path |
+
+Do not present an entry before its transition has worked outside the menu. A
+button that only clears a persistent recovery command may boot Android once and
+also remove the menu from every later normal boot. A physical recovery key is a
+return path only after it has been tested with the replacement recovery image.
+
+Inventory boot control with `android-firmware-lab`. Android normally stores the
+bootloader message in `misc`, but vendor bootloaders may use another partition.
+Resolve that partition by label, back it up, limit writes to the documented
+field, and read the field back. Observe it before and after every reboot command
+used by the design. A command named `reboot recovery` may persist a recovery
+request instead of making a one-shot in-memory choice.
+
+Shared storage is a separate gate. If the alternative root replaced Android's
+`userdata`, booting Android is not dual boot. Android may format the unfamiliar
+filesystem before the menu can recover it. Omit the Android entry until the
+layout gives both systems compatible, isolated data storage or the exact stock
+mount and format behaviour proves otherwise.
+
+Keep the selector in one process and read input events directly, as described
+in [display-bringup.md](display-bringup.md). Define and test the default and
+timeout behaviour explicitly. Inactivity must never rewrite boot control merely
+because no key was pressed.
 
 ## The mruby environment
 

@@ -5,7 +5,7 @@ allowed-tools: Read Grep Glob Edit Write Bash(nix:*) Bash(adb:*) Bash(fastboot:*
 disable-model-invocation: false
 metadata:
   author: Luis Quiñones
-  version: "1.3.0"
+  version: "1.4.0"
   category: nix
 ---
 
@@ -52,7 +52,7 @@ The rung is the effect, never the unit.
 | Task | Read |
 |---|---|
 | Flake, device registry, kernel derivation, keeping a vendor and a mainline tree buildable, boot image, patch discipline | [nix-packaging.md](references/nix-packaging.md) |
-| Write or debug a stage-1 task, USB gadget, networking, SSH, logs | [stage-1.md](references/stage-1.md) |
+| Write or debug a stage-1 task, recovery-resident boot selector, USB gadget, networking, SSH, logs | [stage-1.md](references/stage-1.md) |
 | Black panel, white band, lit-but-blank, no KMS, fbcon, backlight, blanking the panel, keeping printk off a console TUI, writing the dashboard that repaints it | [display-bringup.md](references/display-bringup.md) |
 | systemd/udev failing on a 4.x kernel, missing syscalls, PID 1 freezing silently, a udev that tags nothing so logind and hotkeys go dead | [old-kernel-userspace.md](references/old-kernel-userspace.md) |
 | Device drops off USB at handoff, no logs, writing a rootfs over adb | [device-debugging.md](references/device-debugging.md) |
@@ -66,6 +66,10 @@ The rung is the effect, never the unit.
 - Flash to `recovery`, not `boot`, for the whole of stage-1 bring-up. A working
   Android `boot` is the way back from every experiment. Never write `super` or
   `userdata` before stage-1 is repeatable.
+- A stage-1 boot menu runs after the bootloader has selected and loaded a
+  kernel. Treat it as recovery policy, not GRUB. Do not claim it can select
+  Android, another kernel or another NixOS generation until that exact
+  transition and its return path have both run on the device.
 - A raw kernel in `recovery` is not itself a safety net. It is one while the
   kernel reaches stage-1, because stage-1 gives back a channel; a kernel from an
   untested lineage that panics before userspace leaves no ADB, no gadget, no

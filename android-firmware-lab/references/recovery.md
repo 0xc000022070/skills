@@ -6,6 +6,7 @@
 - Failure classes
 - Slot recovery
 - Module bootloops
+- Alternative-OS boot selection
 - Limits
 
 ## Recovery assets
@@ -33,6 +34,38 @@ Anti-rollback can make an older inactive slot unbootable after a bootloader upda
 When a root module caused the failure, prefer framework-supported safe mode/removal. Magisk can remove modules through its supported command when ADB is available. KernelSU provides safe-mode/rescue behavior documented by its current release. Otherwise disable/remove the specific module from recovery only when its storage layout is known.
 
 Restoring stock boot image removes boot-level injection but may leave module data. Do not delete root databases wholesale as first response.
+
+## Alternative-OS boot selection
+
+A selector inside a recovery or alternative-OS initramfs runs after the
+bootloader has loaded that kernel. It is not a bootloader menu. Selecting
+another boot partition requires a reboot through a mechanism the concrete
+bootloader implements. Selecting another kernel additionally requires proven
+`kexec` support or a flash-and-reboot workflow.
+
+Map the boot-control state before designing the menu:
+
+- locate the bootloader message by partition name, not a remembered block index;
+- save the original bytes and document the writable field boundary;
+- record every accepted command and whether it is persistent or one-shot;
+- read the field before and after `fastboot reboot recovery`, OEM reboot
+  commands and recovery boots;
+- prove how the device returns to the selector after every offered choice.
+
+Do not infer `misc`. Some vendor bootloaders store the bootloader message in a
+different partition. Do not infer one-shot behaviour from a command name. A
+persistent recovery request can create a reset loop, while clearing it to boot
+Android can make the selector disappear on later power-ons.
+
+Treat storage coexistence separately from boot selection. If an alternative OS
+reformatted Android `userdata`, starting Android may reformat it again and erase
+the alternative root. Call that a destructive handoff, not dual boot. Offer
+Android only after separate data storage, a compatible shared format, or exact
+stock mount and format behaviour has been demonstrated.
+
+Replacing the primary bootloader to gain a menu is not an ordinary porting
+step. Require a device-specific authenticated restore path that does not depend
+on the bootloader being replaced.
 
 ## Limits
 
