@@ -63,7 +63,16 @@
         "postgresql",
         "pgbouncer",
         "redis",
-        "graviton"
+        "graviton",
+        "mediapipe",
+        "camerax",
+        "jetpack-compose",
+        "kotlin",
+        "uniffi",
+        "rust",
+        "cargo-ndk",
+        "tailscale",
+        "emulator"
       ]
     }
   ]

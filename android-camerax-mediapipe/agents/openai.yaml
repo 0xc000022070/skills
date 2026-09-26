@@ -1,0 +1,4 @@
+interface:
+  display_name: "CameraX + MediaPipe Live Landmarks"
+  short_description: "Run MediaPipe landmarkers on CameraX frames and draw an aligned, stable overlay in Compose"
+  default_prompt: "Use $android-camerax-mediapipe to wire live pose detection and fix the overlay."

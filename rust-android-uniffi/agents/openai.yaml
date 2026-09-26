@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rust in Android via UniFFI"
+  short_description: "Build a shared Rust core into an Android app with UniFFI and cargo-ndk, and run the device loop"
+  default_prompt: "Use $rust-android-uniffi to wire the Rust core into the Android build and deploy it to a device."

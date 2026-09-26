@@ -9,12 +9,14 @@
   "homepage": "https://github.com/0xc000022070/skills",
   "repository": "https://github.com/0xc000022070/skills",
   "skills": [
+    "./android-camerax-mediapipe",
     "./android-firmware-lab",
     "./commit",
     "./jetson-nixos",
     "./mobile-nixos-port",
     "./nixos-aws-tofu",
     "./react-native-optimistic-ui",
+    "./rust-android-uniffi",
     "./voice-orchestrator",
     "./zen-browser-internals",
     "./zen-browser-flake-dev"
