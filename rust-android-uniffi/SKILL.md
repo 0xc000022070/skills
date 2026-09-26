@@ -1,6 +1,6 @@
 ---
 name: rust-android-uniffi
-description: Ship a shared Rust core inside an Android (Kotlin/Compose) app through UniFFI and cargo-ndk, built from a Nix dev shell, and run the day-to-day device loop - wireless adb installs, headless or remote emulators over ssh, reaching a laptop backend from a phone via adb reverse or a Tailscale tailnet, and restarting a dev server safely. Use when adding a uniffi crate, wiring cargo-ndk and bindgen into Gradle, the build fails with "no such command: ndk", generated Kotlin lands in the wrong package or warns about an old-style --config file, JNA classes vanish in release, a phone cannot reach the dev API over cleartext http, an emulator must be driven over ssh, or the same Rust logic must also run on the server.
+description: 'Ship a shared Rust core inside an Android (Kotlin/Compose) app through UniFFI and cargo-ndk, built from a Nix dev shell, and run the day-to-day device loop - wireless adb installs, headless or remote emulators over ssh, reaching a laptop backend from a phone via adb reverse or a Tailscale tailnet, and restarting a dev server safely. Use when adding a uniffi crate, wiring cargo-ndk and bindgen into Gradle, the build fails with "no such command: ndk", generated Kotlin lands in the wrong package or warns about an old-style --config file, JNA classes vanish in release, a phone cannot reach the dev API over cleartext http, an emulator must be driven over ssh, or the same Rust logic must also run on the server.'
 allowed-tools: Read Grep Glob Edit Write
 disable-model-invocation: false
 metadata:
