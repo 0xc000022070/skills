@@ -72,7 +72,12 @@
         "rust",
         "cargo-ndk",
         "tailscale",
-        "emulator"
+        "emulator",
+        "socratic-debate",
+        "decision-review",
+        "verification",
+        "multi-agent",
+        "subagents"
       ]
     }
   ]

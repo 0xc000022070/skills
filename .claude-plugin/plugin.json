@@ -17,6 +17,7 @@
     "./nixos-aws-tofu",
     "./react-native-optimistic-ui",
     "./rust-android-uniffi",
+    "./socratic-debate",
     "./voice-orchestrator",
     "./zen-browser-internals",
     "./zen-browser-flake-dev"

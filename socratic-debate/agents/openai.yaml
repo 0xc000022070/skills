@@ -1,0 +1,4 @@
+interface:
+  display_name: "Socratic Debate"
+  short_description: "Verify facts first, then adversarially question the remaining judgment"
+  default_prompt: "Use $socratic-debate to stress-test this decision under the stated constraints and stakes."
