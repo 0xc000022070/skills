@@ -3,6 +3,7 @@ set -euo pipefail
 
 pane="$1"
 seq="$2"
+mode="${3:-awake}"
 here="$(cd "$(dirname "$0")" && pwd)"
 
 no() { echo "no $1"; exit 1; }
@@ -20,6 +21,8 @@ if [ "$(jq -r '.kind' <<<"$cur")" = claude ]; then
     [.evaluated_rules[] | select(.region == "prompt_box_body") | .evidence.region_preview][0] // ""' |
     sed 's/❯//g' | tr -d '[:space:]')"
   [ -z "$draft" ] || no "user-draft"
+elif [ "$mode" = awake ]; then
+  no "draft-unknown"
 fi
 
 echo ok

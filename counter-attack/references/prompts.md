@@ -15,7 +15,7 @@ X2 ...
 
 Answer each item on its own line before anything else:
 X<k> fixed <path:line or command + result> | defended <evidence> | conceded <what changed>
-Agreement without evidence counts as unanswered. Fold fixes into your existing task commit with an amend when it is HEAD and unpushed; otherwise leave them uncommitted. Finish with a short final state of the task.
+Agreement without evidence counts as unanswered. Leave fixes uncommitted; a later step decides how to commit them. Finish with a short final state of the task.
 ```
 
 ## FINALIZE.md
@@ -24,11 +24,11 @@ Agreement without evidence counts as unanswered. Fold fixes into your existing t
 [COUNTER-ATTACK finalize] Automated reviewer, not your user. Your user's last instruction outranks this message. Only touch git history as described here; never push.
 
 Task: <one-line paraphrase>
-Commit state: <uncommitted | sprawl: <hashes>>
-Plan: <amend <sha> | one new commit | squash <first>..<last> into one commit>
+Commit state: uncommitted
+Plan: <amend <sha> | one new commit>
 Files in scope: <paths>
 
-Follow the repository's commit convention and your commit rules. Stage only the files in scope. If the plan is unsafe now (HEAD moved, something pushed, another agent's commit on top), make one new commit instead or leave history alone, and say which. Reply with the resulting commit hash and `git log --oneline -3`.
+Follow the repository's commit convention and your commit rules. Stage only the files in scope. If an amend is unsafe now (HEAD moved, the commit was pushed, another agent's commit is on top), make one new commit instead and say so. Reply with the resulting commit hash and `git log --oneline -3`.
 ```
 
 Rules for filling them:

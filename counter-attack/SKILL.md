@@ -30,7 +30,8 @@ Scripts live in `scripts/` next to this file. Call them by absolute path.
 
 State root: `${XDG_STATE_HOME:-$HOME/.local/state}/counter-attack/`. If a
 run there has `"status": "running"` and its `watch.lock` PID is alive, say
-so and resume it; ask nothing.
+so and resume it; ask nothing. Set any other `running` run whose lock PID
+is dead or missing to `"status": "stale"`.
 
 ## Step 2: Ask
 
@@ -64,15 +65,18 @@ Create `<root>/<YYYYmmdd-HHMM>/STATE.json`:
 }
 ```
 
-`global` = `max(4, 3 x targets)`; it covers counter and finalize prompts.
+`only` always holds the chosen pane IDs; panes that appear later are not
+part of the run. `global` = `max(4, 3 x targets)`; it covers counter and
+finalize prompts.
 Pane `status`: `watching | countered | finalizing | settled | awaiting-human
 | capped | delivery-unknown | gone`. Every decision on a pane writes its
 current `leaf`, including skips; the watcher only wakes for a leaf it has
 not seen.
 
 Sleep mode: an unattended permission prompt blocks the whole night. While
-the user is still here, run `scripts/can-inject.sh` on one target and arm
-the watcher once. If either asked for approval, tell the user to allow it
+the user is still here, run `scripts/can-inject.sh <pane> <seq> sleep` on one
+target and arm the watcher (Step 5) before the first cycle; confirm
+`watch.lock` holds a live PID. If either asked for approval, tell the user to allow it
 permanently or relaunch with `claude --permission-mode bypassPermissions`.
 
 Tell the user, in one line, what runs and until when. Then Step 4 at once:
@@ -85,41 +89,55 @@ file; after compaction they are the only memory.
 
 1. `scripts/targets.sh`. Mark missing panes `gone`. Ready panes: status
    `idle` or `done`, `pending_bg` 0, leaf differs from STATE, not focused in
-   awake mode, inside `only` when set.
+   awake mode, inside `only`, and pane status not `settled`, `capped`, or
+   `gone`.
 2. Spawn one fresh reviewer per ready pane with the Agent tool, at most 2 at
-   a time, from [references/reviewer.md](references/reviewer.md). Record
+   a time, from [references/reviewer.md](references/reviewer.md). Pass the
+   transcripts of other targets in the same repository. Record
    the pane's `seq` first. A reviewer replies with one path; read only the
-   first line (`VERDICT ...`). Panes at `capped` get one last review in
-   audit mode, then are only recorded.
+   first line (`VERDICT ...`).
 3. Act on the verdict:
 
 | Verdict | Action |
 |---|---|
 | `counter` | send `COUNTER.md`; rounds +1; status `countered` |
-| `finalize` | send `FINALIZE.md`; `finalized` true; status `finalizing` |
+| `finalize` | send `FINALIZE.md`; `finalized` true; status `finalizing`, or `capped` once sent if items open > 0 |
+| `capped` | status `capped`; send nothing |
 | `settled` | status `settled` |
 | `awaiting-human` | status `awaiting-human`; send nothing |
 | `in-progress` | status `watching`; send nothing |
 | `audit` | record; send nothing |
 
-4. Send only when: mode is not `audit`, `prompts_sent` < global, and
-   `scripts/can-inject.sh <pane> <seq>` prints `ok`. A `counter` also needs
-   rounds < 2; at the cap the reviewer's next verdict can only be
-   `finalize`, `settled`, or `audit`, and the pane ends `capped` if open
-   claims remain.
+4. Send only when mode is not `audit`, `prompts_sent` < global, and, for a
+   `counter`, rounds < 2. Gate and send in one command so the gap between
+   them stays as small as Herdr allows:
 
    ```bash
-   herdr agent prompt <pane> "$(cat <review-dir>/<FILE>.md)" --wait --timeout 15000
+   <skill-dir>/scripts/can-inject.sh <pane> <seq> <mode> &&
+     herdr agent prompt <pane> "$(cat <review-dir>/<FILE>.md)" \
+       --wait --until working --until blocked --timeout 15000
    ```
+
+   This confirms acceptance only, not the target's whole turn. Judge the
+   result from herdr's own exit code and `.error.code`; never pipe it first.
+
+   Herdr has no conditional send, so a state change between the two calls is
+   still possible. Non-Claude panes have no draft check and are never
+   prompted in awake mode.
+
+   `settled` is only ever a verified result. Open items left when the rounds
+   run out end as `capped`, never `settled`.
 
    `agent_prompt_stalled` or `timeout`: status `delivery-unknown`; never
    resend. `agent_blocked` or a gate `no`: keep status, record the leaf.
-5. Write STATE.json, arm the watcher (Step 5), end the turn with one line:
-   cycle, prompts sent, panes per status.
+5. Write STATE.json. If every pane in `only` is `settled`, `capped`, or
+   `gone`, go to Step 6. Otherwise arm the watcher (Step 5) and end the turn
+   with one line: cycle, prompts sent, panes per status.
 
-A pane's task ends at `settled` or `capped`. New work in that pane after
-that is a new task only if the user typed it; reset `rounds` and
-`finalized` then.
+`settled`, `capped`, and `gone` are final: the pane leaves the run and is
+never watched or reviewed again. New work there needs a new `/counter-attack`.
+Panes at `awaiting-human`, `watching`, `countered`, `finalizing`, or
+`delivery-unknown` stay watched.
 
 Never answer approval dialogs, send keys, focus, start, split, or close
 anything in a target pane. Blocked targets go in the report only.
@@ -132,14 +150,15 @@ Bash(run_in_background: true, timeout: 7200000):
 ```
 
 Its exit re-invokes this session. `WATCH ready [...]`: Step 4. `WATCH
-heartbeat`: re-arm, end the turn. `WATCH deadline`: Step 6. `WATCH
+heartbeat`: re-arm, end the turn. `WATCH deadline` or `WATCH all-done`: Step 6. `WATCH
 already-running`: nothing. Never poll in the foreground, never arm two.
 
 ## Step 6: Stop
 
-On deadline, user stop, or every target `gone`:
+On deadline, user stop, or every target final:
 
-1. Set `"status": "stopped"`; kill the PID in `watch.lock` if alive.
+1. Set `"status": "stopped"`; kill the PID in `watch.lock` if alive. Leave
+   the lock file; the watcher holds an flock on it.
 2. Write `<state-dir>/MORNING.md` from [references/report.md](references/report.md).
 3. Print its summary table and path.
 
@@ -154,5 +173,5 @@ On deadline, user stop, or every target `gone`:
 - `done` can hide background work that will wake the target by itself;
   `targets.sh` counts unmatched background task IDs in the transcript.
 - Panes can share a cwd and a branch; work and commits are attributed from
-  the pane's own transcript, and amending is allowed only when nothing else
-  sits on top of the task commit.
+  the pane's own transcript. A file another pane also edited is never
+  committed by the finalize step, and history is never squashed.

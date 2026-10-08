@@ -15,6 +15,7 @@ Target: kind <kind>, cwd <cwd>, title "<title>"
 Transcript: <path, or "none: use herdr agent read <pane-id> --source recent-unwrapped --lines 400">
 Previous review: <path or "none">
 Previous prompt sent: <path to COUNTER.md or FINALIZE.md, or "none">
+Other panes in this repository: <pane: transcript path, ... or "none">
 Mode: <counter|audit>
 Review dir: <state-dir>/panes/<pane-id with : replaced by _>/<k>/
 
@@ -100,18 +101,27 @@ plan; a failed or skipped commit is a finding.
 Only for files this target touched for this task:
 
 - **uncommitted**: task changes still in the worktree or index.
-- **sprawl**: more than one commit for this task, unpushed, contiguous at
-  HEAD, all made by this target.
-- **amendable**: the task commit is HEAD, unpushed (`git branch -r
-  --contains <sha>` is empty), and no other pane committed on top.
+- **sprawl**: more than one commit for this task. Reported, never squashed.
+- **shared**: a file in scope also appears in an edit by another pane's
+  transcript since this task began, or its diff has hunks this transcript
+  does not explain.
+- **amendable**, all of:
+  - the task commit is HEAD and this target created it during this task
+    (its `git commit` is in the transcript);
+  - the transcript has no `git push` since that commit;
+  - `git remote` is empty, or `git ls-remote` succeeds for every remote,
+    every head it lists exists locally, and the task commit is an ancestor
+    of none of them. A failed ls-remote or an unknown remote head means not
+    amendable.
+
+`git branch -r --contains` alone is not evidence: remote-tracking refs can
+be stale.
 
 Commit plan, written into FINALIZE.md:
 
+- shared: no plan; list it under `For the human`.
 - uncommitted and amendable: amend the task commit.
 - uncommitted and not amendable: one new commit.
-- sprawl: squash into one commit (soft reset to the parent of the first
-  task commit, recommit). Not possible if any is pushed or another commit is
-  interleaved: leave history alone.
 - Follow the repo's commit convention and the user's commit rules. Never
   push. Stage only this task's files.
 
@@ -125,14 +135,15 @@ In order:
 2. `counter` if any finding or question remains and ROUND < 2.
 3. `finalize` if FINALIZED is false and a commit plan exists. Open items at
    the cap are listed in REVIEW.md, not sent.
-4. `settled` otherwise.
+4. `capped` if any finding or question remains.
+5. `settled` otherwise. It always means zero open items.
 
 ### 8. Write files
 
 `<review dir>/REVIEW.md`, first line fixed:
 
 ```
-VERDICT <counter|finalize|settled|awaiting-human|in-progress|audit> | items <open>/<total> | commits <clean|uncommitted|sprawl> | blast <normal|high>
+VERDICT <counter|finalize|capped|settled|awaiting-human|in-progress|audit> | items <open>/<total> | commits <clean|uncommitted|sprawl|shared> | blast <normal|high>
 ```
 
 Then: task (verbatim), work summary with paths and commit hashes, the audit
