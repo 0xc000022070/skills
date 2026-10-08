@@ -77,7 +77,10 @@
         "decision-review",
         "verification",
         "multi-agent",
-        "subagents"
+        "subagents",
+        "counter-attack",
+        "supervision",
+        "agent-review"
       ]
     }
   ]

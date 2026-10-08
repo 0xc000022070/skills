@@ -11,6 +11,7 @@
   "skills": [
     "./android-camerax-mediapipe",
     "./android-firmware-lab",
+    "./counter-attack",
     "./commit",
     "./jetson-nixos",
     "./mobile-nixos-port",

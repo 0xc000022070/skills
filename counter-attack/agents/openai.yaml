@@ -1,0 +1,4 @@
+interface:
+  display_name: "Counter-Attack"
+  short_description: "Supervise Herdr agent panes and counterargue their finished work"
+  default_prompt: "Use $counter-attack to supervise every Herdr agent pane and challenge their results."
