@@ -3,6 +3,7 @@ name: commit
 description: Inspect current Git changes and create one or more clean, atomic commits that preserve unrelated work and follow the repository's message convention. Use when the user asks to commit, checkpoint, record, or split current changes into commits.
 allowed-tools: Read Grep Glob Bash(git status:*) Bash(git diff:*) Bash(git log:*) Bash(git config:*) Bash(git submodule:*) Bash(git add:*) Bash(git commit:*) Bash(git show:*)
 disable-model-invocation: false
+model: sonnet
 metadata:
   author: Luis Quiñones
   version: "1.0.0"
