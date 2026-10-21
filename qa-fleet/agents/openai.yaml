@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Fleet"
+  short_description: "Run a multi-device mobile QA round with one subagent tester per device"
+  default_prompt: "Use $qa-fleet to run a QA round on this app across the available emulators and simulators."

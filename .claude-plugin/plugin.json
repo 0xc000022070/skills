@@ -21,6 +21,7 @@
     "./socratic-debate",
     "./voice-orchestrator",
     "./zen-browser-internals",
-    "./zen-browser-flake-dev"
+    "./zen-browser-flake-dev",
+    "./qa-fleet"
   ]
 }

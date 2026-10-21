@@ -80,7 +80,11 @@
         "subagents",
         "counter-attack",
         "supervision",
-        "agent-review"
+        "agent-review",
+        "qa",
+        "exploratory-testing",
+        "maestro",
+        "ios-simulator"
       ]
     }
   ]
