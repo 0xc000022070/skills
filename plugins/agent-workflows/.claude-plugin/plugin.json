@@ -1,0 +1,26 @@
+{
+  "name": "agent-workflows",
+  "description": "Git commits, adversarial decision review, and supervision and voice control of Herdr coding agents.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Luis Quiñones",
+    "email": "luis@quinones.pro"
+  },
+  "homepage": "https://github.com/0xc000022070/skills",
+  "repository": "https://github.com/0xc000022070/skills",
+  "keywords": [
+    "git",
+    "commit",
+    "herdr",
+    "agent-orchestration",
+    "multi-agent",
+    "subagents",
+    "supervision",
+    "agent-review",
+    "counter-attack",
+    "socratic-debate",
+    "decision-review",
+    "verification",
+    "voice"
+  ]
+}

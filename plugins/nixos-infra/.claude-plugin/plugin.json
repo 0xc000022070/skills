@@ -1,0 +1,27 @@
+{
+  "name": "nixos-infra",
+  "description": "NixOS hosts on AWS EC2 provisioned with OpenTofu and secrets managed by agenix.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Luis Quiñones",
+    "email": "luis@quinones.pro"
+  },
+  "homepage": "https://github.com/0xc000022070/skills",
+  "repository": "https://github.com/0xc000022070/skills",
+  "keywords": [
+    "nixos",
+    "nix",
+    "opentofu",
+    "terraform",
+    "aws",
+    "ec2",
+    "graviton",
+    "agenix",
+    "age",
+    "secrets",
+    "infrastructure-as-code",
+    "postgresql",
+    "pgbouncer",
+    "redis"
+  ]
+}

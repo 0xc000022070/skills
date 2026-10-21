@@ -1,0 +1,41 @@
+{
+  "name": "device-bringup",
+  "description": "Firmware, kernel, and NixOS bring-up on Android phones and NVIDIA Jetson boards: boot images, recoveries, root, Mobile NixOS ports, JetPack.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Luis Quiñones",
+    "email": "luis@quinones.pro"
+  },
+  "homepage": "https://github.com/0xc000022070/skills",
+  "repository": "https://github.com/0xc000022070/skills",
+  "keywords": [
+    "android",
+    "firmware",
+    "bootloader",
+    "twrp",
+    "recovery",
+    "mediatek",
+    "magisk",
+    "kernelsu",
+    "adb",
+    "mobile-nixos",
+    "postmarketos",
+    "nixos",
+    "kernel",
+    "systemd",
+    "fbdev",
+    "udev",
+    "rndis",
+    "jetson",
+    "orin",
+    "tegra",
+    "jetpack",
+    "l4t",
+    "cuda",
+    "aarch64",
+    "cross-compilation",
+    "uefi",
+    "edk2",
+    "disko"
+  ]
+}

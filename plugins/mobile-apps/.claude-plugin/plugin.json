@@ -1,0 +1,31 @@
+{
+  "name": "mobile-apps",
+  "description": "Android and React Native app development: CameraX + MediaPipe, Rust cores via UniFFI, optimistic UI, and multi-device QA rounds.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Luis Quiñones",
+    "email": "luis@quinones.pro"
+  },
+  "homepage": "https://github.com/0xc000022070/skills",
+  "repository": "https://github.com/0xc000022070/skills",
+  "keywords": [
+    "android",
+    "kotlin",
+    "jetpack-compose",
+    "camerax",
+    "mediapipe",
+    "rust",
+    "uniffi",
+    "cargo-ndk",
+    "adb",
+    "emulator",
+    "tailscale",
+    "react-native",
+    "expo",
+    "optimistic-ui",
+    "qa",
+    "exploratory-testing",
+    "maestro",
+    "ios-simulator"
+  ]
+}
